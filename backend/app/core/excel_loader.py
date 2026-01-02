@@ -131,10 +131,22 @@ def determine_course_type(code: str) -> CourseType:
     if not code:
         return "lecture"
     code_upper = code.upper()
-    if "-L." in code_upper or "-LAB." in code_upper or code_upper.endswith("-L"):
+    
+    # Lab patterns: -L., -LAB., .L., .LAB., -L1, -LAB1, etc.
+    lab_patterns = ["-L.", "-LAB.", ".L.", ".LAB.", "-L1", "-L2", "-LAB1", "-LAB2"]
+    for pattern in lab_patterns:
+        if pattern in code_upper:
+            return "lab"
+    
+    # Also check for L followed by digit at end: SOFT3215.L.1
+    import re
+    if re.search(r'[-.]L[-.]?\d', code_upper) or re.search(r'[-.]LAB[-.]?\d', code_upper):
         return "lab"
-    elif "-PS." in code_upper or code_upper.endswith("-PS"):
+    
+    # PS patterns
+    if "-PS." in code_upper or ".PS." in code_upper or code_upper.endswith("-PS"):
         return "ps"
+    
     return "lecture"
 
 

@@ -10,7 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import settings
-from app.api.routes import upload, generate, schedules, health
+from app.api.routes import upload, generate, schedules, health, auth, admin, courses
+from app.models.database import init_db, create_admin_user
 
 
 @asynccontextmanager
@@ -19,6 +20,11 @@ async def lifespan(app: FastAPI):
     # Startup
     print(f"🚀 Starting {settings.APP_NAME} v1.0.0")
     print(f"📊 Environment: {settings.APP_ENV}")
+    
+    # Initialize database
+    print("🗄️ Initializing database...")
+    init_db()
+    create_admin_user()
     
     yield
     
@@ -47,6 +53,9 @@ app.add_middleware(
 
 # Include routers
 app.include_router(health.router, tags=["Health"])
+app.include_router(auth.router, tags=["Auth"])
+app.include_router(admin.router, tags=["Admin"])
+app.include_router(courses.router, tags=["Courses"])
 app.include_router(upload.router, prefix="/api", tags=["Upload"])
 app.include_router(generate.router, prefix="/api", tags=["Generate"])
 app.include_router(schedules.router, prefix="/api", tags=["Schedules"])

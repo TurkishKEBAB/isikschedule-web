@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useLanguage, LanguageSwitcher } from '../context/LanguageContext';
 
 interface Course {
     code: string;
@@ -27,7 +28,6 @@ interface Schedule {
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 const PERIODS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 const PERIOD_TIMES = ['08:30', '09:30', '10:30', '11:30', '12:30', '13:30', '14:30', '15:30', '16:30', '17:30'];
-const DAY_ABBR: Record<string, string> = { Monday: 'Pzt', Tuesday: 'Sal', Wednesday: 'Çar', Thursday: 'Per', Friday: 'Cum' };
 
 const TYPE_COLORS: Record<string, string> = {
     lecture: 'bg-blue-500/90',
@@ -36,12 +36,27 @@ const TYPE_COLORS: Record<string, string> = {
 };
 
 export default function SchedulerPage() {
-    // File & Courses
-    const [fileId, setFileId] = useState<string | null>(null);
+    // Language
+    const { t, lang } = useLanguage();
+    const DAY_ABBR: Record<string, string> = {
+        Monday: t.mon,
+        Tuesday: t.tue,
+        Wednesday: t.wed,
+        Thursday: t.thu,
+        Friday: t.fri
+    };
+
+    // Auth - optional, works without login too
+    const [user, setUser] = useState<{ email: string, role: string } | null>(null);
+
+    // Courses (from global or user upload)
     const [allCourses, setAllCourses] = useState<Course[]>([]);
-    const [isUploading, setIsUploading] = useState(false);
-    const [showUploadModal, setShowUploadModal] = useState(true); // Start with upload modal
+    const [isLoading, setIsLoading] = useState(true);
+    const [semester, setSemester] = useState<string>('');
+    const [showUploadModal, setShowUploadModal] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
+    const [fileId, setFileId] = useState<string | null>(null);
 
     // Selected courses & schedules
     const [activeCourses, setActiveCourses] = useState<Course[]>([]);
@@ -54,14 +69,47 @@ export default function SchedulerPage() {
     const [showSettings, setShowSettings] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
-    const [expandedCourse, setExpandedCourse] = useState<string | null>(null); // For section picker in sidebar
+    const [expandedCourse, setExpandedCourse] = useState<string | null>(null);
 
     // Config
     const [algorithm, setAlgorithm] = useState('dfs');
-    const [maxEcts, setMaxEcts] = useState(30);
-    const [maxConflicts, setMaxConflicts] = useState(0);
+    const [maxEcts, setMaxEcts] = useState(31);
+    const [maxConflicts, setMaxConflicts] = useState(1);
 
-    // Handle file upload
+    // Load user from localStorage and fetch global courses on mount
+    useEffect(() => {
+        // Check user
+        const savedUser = localStorage.getItem('user');
+        if (savedUser) {
+            setUser(JSON.parse(savedUser));
+        }
+
+        // Try to load global courses first
+        loadGlobalCourses();
+    }, []);
+
+    const loadGlobalCourses = async () => {
+        setIsLoading(true);
+        try {
+            const res = await fetch('http://localhost:8000/api/courses/global');
+            if (res.ok) {
+                const data = await res.json();
+                setAllCourses(data.courses || []);
+                setSemester(data.semester);
+                setFileId('global'); // Mark as using global courses
+            } else {
+                // No global courses, show upload modal
+                setShowUploadModal(true);
+            }
+        } catch (err) {
+            console.error('Error loading global courses:', err);
+            setShowUploadModal(true);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Handle manual file upload (fallback)
     const handleUpload = async (file: File) => {
         if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
             alert('Lütfen Excel dosyası (.xlsx) yükleyin');
@@ -88,6 +136,7 @@ export default function SchedulerPage() {
             const coursesRes = await fetch(`http://localhost:8000/api/upload/${result.file_id}/courses`);
             const coursesData = await coursesRes.json();
             setAllCourses(coursesData.courses || []);
+            setSemester('Manuel Yükleme');
 
             setShowUploadModal(false);
         } catch (err) {
@@ -95,6 +144,12 @@ export default function SchedulerPage() {
         } finally {
             setIsUploading(false);
         }
+    };
+
+    const handleLogout = () => {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        setUser(null);
     };
 
     // Handle drag & drop
@@ -141,20 +196,45 @@ export default function SchedulerPage() {
             // Remove course and all its related components (PS, Lab with same main_code)
             setActiveCourses(prev => prev.filter(c => c.main_code !== mainCode));
         } else {
-            // Find best section that doesn't conflict with locks
-            const validSection = courseHasValidSection(mainCode);
+            // Find all components for this main_code (lecture, lab, ps) and pick best section for each
+            const allComponents = allCourses.filter(c => c.main_code === mainCode);
 
-            if (validSection) {
-                setActiveCourses(prev => [...prev, validSection]);
-            } else {
+            // Group by type
+            const lectureOptions = allComponents.filter(c => c.type === 'lecture');
+            const labOptions = allComponents.filter(c => c.type === 'lab');
+            const psOptions = allComponents.filter(c => c.type === 'ps');
+
+            const toAdd: Course[] = [];
+
+            // Pick first valid section for each type (non-locked)
+            const pickBestSection = (options: Course[]): Course | null => {
+                for (const opt of options) {
+                    const hasConflict = opt.schedule?.some((slot: [string, number]) => {
+                        const [d, p] = slot;
+                        return lockedSlots.has(`${d}-${p}`);
+                    });
+                    if (!hasConflict) return opt;
+                }
+                return options[0] || null; // Fallback to first if all locked
+            };
+
+            const lecture = pickBestSection(lectureOptions);
+            const lab = pickBestSection(labOptions);
+            const ps = pickBestSection(psOptions);
+
+            if (lecture) toAdd.push(lecture);
+            if (lab) toAdd.push(lab);
+            if (ps) toAdd.push(ps);
+
+            if (toAdd.length === 0) {
                 // No valid section - warn user
-                const allSections = allCourses.filter(c => c.main_code === mainCode);
-                const sectionCount = allSections.length;
                 alert(
-                    `⚠️ ${mainCode} eklenemiyor!\n\n` +
-                    `Tüm section'lar (${sectionCount} adet) kilitli saatlerle çakışıyor.\n\n` +
-                    `Çözüm: Bazı kilitleri kaldırın veya farklı bir ders seçin.`
+                    `⚠️ ${mainCode} ${t.courseCannotBeAdded}\n\n` +
+                    `${t.allSectionsConflict}\n\n` +
+                    t.solutionRemoveLocks
                 );
+            } else {
+                setActiveCourses(prev => [...prev, ...toAdd]);
             }
         }
     };
@@ -173,7 +253,7 @@ export default function SchedulerPage() {
         });
 
         if (hasLockConflict) {
-            alert('Bu section kilitli saatlerle çakışıyor!');
+            alert(t.sectionConflictsWithLock);
             return;
         }
 
@@ -213,6 +293,8 @@ export default function SchedulerPage() {
         // Find alternatives for affected courses
         let newCourses = [...activeCourses];
         const messages: string[] = [];
+        const switchedCourses: string[] = [];
+        const removedCourses: string[] = [];
 
         coursesInSlot.forEach(course => {
             const alternatives = allCourses.filter(alt =>
@@ -227,15 +309,26 @@ export default function SchedulerPage() {
             if (alternatives.length > 0) {
                 newCourses = newCourses.filter(c => c.main_code !== course.main_code);
                 newCourses.push(alternatives[0]);
-                messages.push(`${course.code} → ${alternatives[0].code}`);
+                switchedCourses.push(`✅ ${course.main_code}: ${course.code} → ${alternatives[0].code}`);
             } else {
                 newCourses = newCourses.filter(c => c.main_code !== course.main_code);
-                messages.push(`${course.code} kaldırıldı (alternatif yok)`);
+                removedCourses.push(`❌ ${course.main_code} (${course.name})`);
             }
         });
 
-        if (messages.length > 0) {
-            setTimeout(() => alert(messages.join('\n')), 100);
+        if (switchedCourses.length > 0 || removedCourses.length > 0) {
+            let alertMsg = `🔒 ${DAY_ABBR[day]} ${PERIOD_TIMES[period - 1]} ${t.locked}:\n\n`;
+
+            if (switchedCourses.length > 0) {
+                alertMsg += `${t.sectionChanged}:\n${switchedCourses.join('\n')}\n\n`;
+            }
+
+            if (removedCourses.length > 0) {
+                alertMsg += `⚠️ ${t.removedNoAlternative}:\n${removedCourses.join('\n')}\n\n`;
+                alertMsg += `(${t.toReaddRemoveLocks})`;
+            }
+
+            setTimeout(() => alert(alertMsg), 100);
         }
 
         setLockedSlots(newLocked);
@@ -252,9 +345,13 @@ export default function SchedulerPage() {
 
     // Generate schedules
     const generateSchedules = async () => {
-        if (!fileId || activeCourses.length === 0) return;
+        if (!fileId || activeCourses.length === 0) {
+            alert(t.pleaseSelectCourse);
+            return;
+        }
 
         setIsGenerating(true);
+        console.log('Generating schedules...', { fileId, courses: activeCourses.map(c => c.code) });
 
         try {
             // Convert locked slots to format backend understands
@@ -278,87 +375,87 @@ export default function SchedulerPage() {
                 }),
             });
 
-            if (!response.ok) throw new Error('Generation failed');
+            if (!response.ok) {
+                console.error('Generate API error:', response.status);
+                throw new Error('Generation failed');
+            }
 
             const result = await response.json();
+            console.log('Generate response:', result);
 
             // Poll for result
             const poll = async () => {
-                const res = await fetch(`http://localhost:8000/api/jobs/${result.job_id}`);
-                const data = await res.json();
+                try {
+                    const res = await fetch(`http://localhost:8000/api/jobs/${result.job_id}`);
+                    const data = await res.json();
+                    console.log('Poll result:', data.status);
 
-                if (data.status === 'completed' && data.result) {
-                    const schedules = data.result.schedules || [];
+                    if (data.status === 'completed' && data.result) {
+                        const backendSchedules = data.result.schedules || [];
+                        console.log('Backend returned', backendSchedules.length, 'schedules');
 
-                    // Filter schedules to only include those that don't violate locks
-                    // (In case backend doesn't fully support locks yet)
-                    const validSchedules = schedules.filter((sched: Schedule) => {
-                        return sched.courses.every(course =>
-                            !course.schedule?.some(slot => {
-                                const [d, p] = Array.isArray(slot) ? slot : [slot, 0];
-                                return lockedSlots.has(`${d}-${p}`);
-                            })
-                        );
-                    });
-
-                    // If no valid schedules, use originals but swap locked courses
-                    if (validSchedules.length === 0 && schedules.length > 0) {
-                        // Apply lock fixing to first schedule
-                        let fixedCourses = [...schedules[0].courses];
-
-                        lockedSlots.forEach(key => {
-                            const [day, periodStr] = key.split('-');
-                            const period = parseInt(periodStr);
-
-                            const conflicting = fixedCourses.filter(c =>
-                                c.schedule?.some((slot: [string, number]) => {
-                                    const [d, p] = slot;
-                                    return d === day && p === period;
-                                })
-                            );
-
-                            conflicting.forEach(course => {
-                                const alternatives = allCourses.filter(alt =>
-                                    alt.main_code === course.main_code &&
-                                    alt.code !== course.code &&
-                                    !alt.schedule?.some(slot => {
+                        if (backendSchedules.length > 0) {
+                            // Use backend schedules - apply lock filtering
+                            const validSchedules = backendSchedules.filter((sched: Schedule) => {
+                                return sched.courses.every(course =>
+                                    !course.schedule?.some(slot => {
                                         const [d, p] = Array.isArray(slot) ? slot : [slot, 0];
                                         return lockedSlots.has(`${d}-${p}`);
                                     })
                                 );
-
-                                if (alternatives.length > 0) {
-                                    fixedCourses = fixedCourses.filter(c => c.main_code !== course.main_code);
-                                    fixedCourses.push(alternatives[0]);
-                                } else {
-                                    fixedCourses = fixedCourses.filter(c => c.main_code !== course.main_code);
-                                }
                             });
-                        });
 
-                        setActiveCourses(fixedCourses);
-                        setSchedules([{ ...schedules[0], courses: fixedCourses }]);
-                    } else if (validSchedules.length > 0) {
-                        setSchedules(validSchedules);
-                        setActiveCourses(validSchedules[0].courses);
+                            if (validSchedules.length > 0) {
+                                setSchedules(validSchedules);
+                                setActiveCourses(validSchedules[0].courses);
+                                setCurrentScheduleIdx(0);
+                            } else {
+                                // No valid schedules after filtering - keep current selection as single schedule
+                                const currentSchedule: Schedule = {
+                                    id: 'manual-' + Date.now(),
+                                    score: 0,
+                                    total_ects: activeCourses.reduce((sum, c) => sum + (c.ects || 0), 0),
+                                    conflict_count: 0,
+                                    course_count: activeCourses.length,
+                                    courses: activeCourses
+                                };
+                                setSchedules([currentSchedule]);
+                                setCurrentScheduleIdx(0);
+                                alert(t.backendConflict);
+                            }
+                        } else {
+                            // No schedules from backend - use current selection
+                            const currentSchedule: Schedule = {
+                                id: 'manual-' + Date.now(),
+                                score: 0,
+                                total_ects: activeCourses.reduce((sum, c) => sum + (c.ects || 0), 0),
+                                conflict_count: 0,
+                                course_count: activeCourses.length,
+                                courses: activeCourses
+                            };
+                            setSchedules([currentSchedule]);
+                            setCurrentScheduleIdx(0);
+                        }
+
+                        setIsGenerating(false);
+                    } else if (data.status === 'failed') {
+                        console.error('Job failed:', data.message);
+                        alert(`${t.generationFailed}: ` + (data.message || t.unknownError));
+                        setIsGenerating(false);
                     } else {
-                        setSchedules([]);
-                        // Keep current courses
+                        // Still processing
+                        setTimeout(poll, 500);
                     }
-
-                    setCurrentScheduleIdx(0);
+                } catch (pollErr) {
+                    console.error('Poll error:', pollErr);
                     setIsGenerating(false);
-                } else if (data.status === 'failed') {
-                    alert('Oluşturma başarısız');
-                    setIsGenerating(false);
-                } else {
-                    setTimeout(poll, 500);
                 }
             };
 
             poll();
         } catch (err) {
-            alert('Hata oluştu');
+            console.error('Generate error:', err);
+            alert('Hata oluştu: ' + (err as Error).message);
             setIsGenerating(false);
         }
     };
@@ -410,12 +507,15 @@ export default function SchedulerPage() {
                     <Link href="/" className="text-xl font-bold">🎓 IşıkSchedule</Link>
 
                     <div className="flex items-center gap-3">
+                        {/* Language Switcher */}
+                        <LanguageSwitcher />
+
                         {/* Upload new file */}
                         <button
                             onClick={() => setShowUploadModal(true)}
                             className="px-3 py-2 bg-slate-700 rounded text-sm hover:bg-slate-600"
                         >
-                            📁 Dosya Değiştir
+                            {t.changeFile}
                         </button>
 
                         {/* Settings */}
@@ -423,22 +523,23 @@ export default function SchedulerPage() {
                             onClick={() => setShowSettings(!showSettings)}
                             className={`px-3 py-2 rounded text-sm ${showSettings ? 'bg-amber-600' : 'bg-slate-700 hover:bg-slate-600'}`}
                         >
-                            ⚙️ Ayarlar
+                            {t.settings}
                         </button>
 
                         {/* Stats */}
                         <div className="text-sm px-3 py-1 bg-slate-700 rounded">
-                            <span className="font-bold">{selectedCount}</span> ders |
-                            <span className="font-bold ml-1">{totalEcts}</span> ECTS
+                            <span className="font-bold">{selectedCount}</span> {t.courses} |
+                            <span className="font-bold ml-1">{totalEcts}</span> {t.ects}
                         </div>
 
                         {/* Generate */}
                         <button
                             onClick={generateSchedules}
-                            disabled={isGenerating || activeCourses.length === 0}
+                            disabled={isGenerating || activeCourses.length === 0 ? true : false}
                             className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 rounded text-sm font-bold hover:from-blue-700 hover:to-purple-700 disabled:opacity-50"
+                            suppressHydrationWarning
                         >
-                            {isGenerating ? '⏳ Oluşturuluyor...' : '🚀 Program Oluştur'}
+                            {isGenerating ? t.creating : t.createSchedule}
                         </button>
                     </div>
                 </div>
@@ -449,29 +550,29 @@ export default function SchedulerPage() {
                 {/* Left Sidebar - Course Selection */}
                 <div className="w-80 flex-shrink-0 bg-slate-800 border-r border-slate-700 flex flex-col">
                     <div className="p-4 border-b border-slate-700">
-                        <h2 className="font-bold text-lg mb-3">📚 Dersler</h2>
+                        <h2 className="font-bold text-lg mb-3">📚 {lang === 'tr' ? 'Dersler' : 'Courses'}</h2>
                         <input
                             type="text"
-                            placeholder="🔍 Ders ara..."
+                            placeholder={t.searchCourse}
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="w-full p-2 bg-slate-700 rounded border border-slate-600 text-sm"
                         />
                         <div className="flex justify-between text-xs text-slate-400 mt-2">
-                            <span>{selectedCount} ders seçildi</span>
-                            <span>{totalEcts} ECTS</span>
+                            <span>{selectedCount} {t.coursesSelected}</span>
+                            <span>{totalEcts} {t.ects}</span>
                         </div>
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-2 space-y-1">
                         {allCourses.length === 0 ? (
                             <div className="text-center text-slate-500 py-8">
-                                <p>Henüz dosya yüklenmedi</p>
+                                <p>{t.noFileUploaded}</p>
                                 <button
                                     onClick={() => setShowUploadModal(true)}
                                     className="mt-2 text-blue-400 hover:text-blue-300"
                                 >
-                                    📁 Dosya Yükle
+                                    {t.uploadFile}
                                 </button>
                             </div>
                         ) : (
@@ -502,7 +603,7 @@ export default function SchedulerPage() {
                                         </div>
                                         <div className="text-sm text-slate-400 truncate">{course.name}</div>
                                         {isBlocked && (
-                                            <div className="text-xs text-red-400 mt-1">Tüm section'lar kilitli</div>
+                                            <div className="text-xs text-red-400 mt-1">{t.allSectionsLocked}</div>
                                         )}
                                     </button>
                                 );
@@ -516,7 +617,7 @@ export default function SchedulerPage() {
                     <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
                         <div className="p-3 bg-slate-700/50 border-b border-slate-600 flex justify-between items-center">
                             <h3 className="font-bold">
-                                {schedules.length > 0 ? `Program #${currentScheduleIdx + 1}` : 'Haftalık Program'}
+                                {schedules.length > 0 ? `${t.program} #${currentScheduleIdx + 1}` : t.weeklySchedule}
                             </h3>
                             {schedules.length > 0 && (
                                 <div className="flex items-center gap-2">
@@ -530,7 +631,7 @@ export default function SchedulerPage() {
                         <table className="w-full border-collapse">
                             <thead>
                                 <tr className="bg-slate-700/30">
-                                    <th className="p-2 text-left text-xs text-slate-400 w-16 border-b border-slate-600">Saat</th>
+                                    <th className="p-2 text-left text-xs text-slate-400 w-16 border-b border-slate-600">{t.time}</th>
                                     {DAYS.map(day => (
                                         <th key={day} className="p-2 text-center text-xs text-slate-300 border-b border-slate-600">{DAY_ABBR[day]}</th>
                                     ))}
@@ -556,7 +657,7 @@ export default function SchedulerPage() {
                                                         onClick={() => toggleLock(day, period)}
                                                         className={`absolute top-0 right-0 w-4 h-4 text-[8px] opacity-0 group-hover:opacity-100 transition z-10
                                                             ${isLocked ? 'text-red-400 opacity-100' : 'text-slate-400 hover:text-white'}`}
-                                                        title={isLocked ? 'Kilidi Kaldır' : 'Kilitle'}
+                                                        title={isLocked ? t.unlock : t.lock}
                                                     >
                                                         {isLocked ? '🔒' : '🔓'}
                                                     </button>
@@ -605,15 +706,15 @@ export default function SchedulerPage() {
                         ) : null}
 
                         <div className="text-5xl mb-4">📁</div>
-                        <h2 className="text-xl font-bold mb-2">Ders Programını Yükle</h2>
-                        <p className="text-slate-400 mb-6">Excel dosyasını sürükle veya seç</p>
+                        <h2 className="text-xl font-bold mb-2">{t.uploadTitle}</h2>
+                        <p className="text-slate-400 mb-6">{t.uploadSubtitle}</p>
 
                         {isUploading ? (
-                            <div className="text-blue-400">⏳ Yükleniyor...</div>
+                            <div className="text-blue-400">{t.uploading}</div>
                         ) : (
                             <label className="cursor-pointer">
                                 <span className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 inline-block">
-                                    📤 Dosya Seç
+                                    {t.selectFile}
                                 </span>
                                 <input
                                     type="file"
@@ -629,7 +730,7 @@ export default function SchedulerPage() {
                                 onClick={() => setShowUploadModal(false)}
                                 className="mt-4 block w-full text-slate-400 hover:text-white"
                             >
-                                Devam Et →
+                                {t.continue}
                             </button>
                         )}
                     </div>
@@ -640,28 +741,28 @@ export default function SchedulerPage() {
             {showSettings && (
                 <div className="fixed top-16 right-4 bg-slate-800 rounded-xl border border-slate-600 p-4 w-72 shadow-2xl z-40">
                     <div className="flex justify-between items-center mb-4">
-                        <h3 className="font-bold">⚙️ Ayarlar</h3>
+                        <h3 className="font-bold">{t.settingsTitle}</h3>
                         <button onClick={() => setShowSettings(false)} className="text-slate-400 hover:text-white">×</button>
                     </div>
 
                     <div className="space-y-4">
                         <div>
-                            <label className="text-xs text-slate-400 block mb-1">Algoritma</label>
+                            <label className="text-xs text-slate-400 block mb-1">{t.algorithm}</label>
                             <select value={algorithm} onChange={(e) => setAlgorithm(e.target.value)} className="w-full p-2 bg-slate-700 rounded text-sm">
-                                <option value="dfs">DFS (Hızlı)</option>
-                                <option value="genetic">Genetik</option>
-                                <option value="astar">A*</option>
+                                <option value="dfs">{t.dfs}</option>
+                                <option value="genetic">{t.genetic}</option>
+                                <option value="astar">{t.astar}</option>
                             </select>
                         </div>
 
                         <div>
-                            <label className="text-xs text-slate-400 block mb-1">Max ECTS: {maxEcts}</label>
-                            <input type="range" min="15" max="45" value={maxEcts} onChange={(e) => setMaxEcts(+e.target.value)} className="w-full accent-blue-500" />
+                            <label className="text-xs text-slate-400 block mb-1">{t.maxEcts}: {maxEcts}</label>
+                            <input type="range" min="0" max="60" value={maxEcts} onChange={(e) => setMaxEcts(+e.target.value)} className="w-full accent-blue-500" />
                         </div>
 
                         <div>
-                            <label className="text-xs text-slate-400 block mb-1">Çakışma Toleransı: {maxConflicts}</label>
-                            <input type="range" min="0" max="3" value={maxConflicts} onChange={(e) => setMaxConflicts(+e.target.value)} className="w-full accent-orange-500" />
+                            <label className="text-xs text-slate-400 block mb-1">{t.conflictTolerance}: {maxConflicts}</label>
+                            <input type="range" min="0" max="5" value={maxConflicts} onChange={(e) => setMaxConflicts(+e.target.value)} className="w-full accent-orange-500" />
                         </div>
                     </div>
                 </div>
@@ -674,7 +775,7 @@ export default function SchedulerPage() {
                         <div className="flex justify-between items-start mb-4">
                             <div>
                                 <span className={`px-2 py-1 rounded text-xs ${TYPE_COLORS[selectedCourse.type]}`}>
-                                    {selectedCourse.type === 'lab' ? 'Lab' : selectedCourse.type === 'ps' ? 'PS' : 'Lecture'}
+                                    {selectedCourse.type === 'lab' ? t.lab : selectedCourse.type === 'ps' ? t.problemSession : t.lecture}
                                 </span>
                                 <h2 className="text-xl font-bold mt-2">{selectedCourse.code}</h2>
                                 <p className="text-slate-400 text-sm">{selectedCourse.name}</p>
@@ -683,15 +784,15 @@ export default function SchedulerPage() {
                         </div>
 
                         <div className="space-y-2 text-sm">
-                            <div className="flex justify-between"><span className="text-slate-400">ECTS:</span><span>{selectedCourse.ects}</span></div>
-                            <div className="flex justify-between"><span className="text-slate-400">Hoca:</span><span>{selectedCourse.teacher || '-'}</span></div>
-                            <div className="flex justify-between"><span className="text-slate-400">Saatler:</span><span>{selectedCourse.schedule?.map(s => `${DAY_ABBR[s[0]]}${s[1]}`).join(', ')}</span></div>
+                            <div className="flex justify-between"><span className="text-slate-400">{t.ects}:</span><span>{selectedCourse.ects}</span></div>
+                            <div className="flex justify-between"><span className="text-slate-400">{t.teacher}:</span><span>{selectedCourse.teacher || '-'}</span></div>
+                            <div className="flex justify-between"><span className="text-slate-400">{t.schedule}:</span><span>{selectedCourse.schedule?.map(s => `${DAY_ABBR[s[0]]}${s[1]}`).join(', ')}</span></div>
                         </div>
 
                         {/* Section Switcher */}
                         {getAlternativeSections(selectedCourse.main_code).length > 1 && (
                             <div className="mt-4 pt-4 border-t border-slate-600">
-                                <h4 className="text-xs text-slate-400 mb-2">🔄 Section Değiştir</h4>
+                                <h4 className="text-xs text-slate-400 mb-2">{t.switchSection}</h4>
                                 <div className="space-y-1 max-h-40 overflow-y-auto">
                                     {getAlternativeSections(selectedCourse.main_code).map(alt => {
                                         const isActive = alt.code === selectedCourse.code;
@@ -726,7 +827,7 @@ export default function SchedulerPage() {
                             onClick={() => { toggleCourse(selectedCourse.main_code); setSelectedCourse(null); }}
                             className="w-full mt-4 py-2 bg-red-600/20 text-red-400 rounded-lg hover:bg-red-600/30"
                         >
-                            🗑️ Dersi Kaldır
+                            {t.removeCourse}
                         </button>
                     </div>
                 </div>
