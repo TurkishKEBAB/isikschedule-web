@@ -5,7 +5,7 @@ import os
 import uuid
 import logging
 from typing import Dict, List, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 from itertools import product
 
 from fastapi import APIRouter, HTTPException
@@ -254,7 +254,7 @@ async def start_generation(request: GenerateRequest):
         "progress": 0,
         "message": "Starting generation...",
         "result": None,
-        "created_at": datetime.utcnow().isoformat()
+        "created_at": datetime.now(timezone.utc).isoformat()
     }
     
     try:

@@ -2,7 +2,7 @@
 
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
@@ -88,7 +88,7 @@ async def upload_excel(file: UploadFile = File(...)):
         filename=file.filename,
         course_count=len(courses),
         preview=preview,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
     )
 
 

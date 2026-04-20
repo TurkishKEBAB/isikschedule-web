@@ -6,9 +6,14 @@ Uses SQLite with SQLAlchemy ORM.
 from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, ForeignKey, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ..config import settings
+
+
+def _utcnow() -> datetime:
+    """Timezone-aware UTC 'now' used as the default for timestamp columns."""
+    return datetime.now(timezone.utc)
 
 DATABASE_URL = settings.DATABASE_URL
 
@@ -31,7 +36,7 @@ class User(Base):
     email = Column(String(255), unique=True, index=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
     role = Column(String(50), default="user")  # "admin" or "user"
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
     is_active = Column(Boolean, default=True)
     
     # Relationships
@@ -51,7 +56,7 @@ class SavedSchedule(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     name = Column(String(255), nullable=False)
     courses_json = Column(Text, nullable=False)  # JSON string of courses
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
     share_id = Column(String(64), unique=True, nullable=True)  # For sharing
     
     # Relationships
@@ -69,8 +74,8 @@ class Friendship(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     friend_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     status = Column(String(50), default="pending")  # "pending", "accepted", "rejected"
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
 
     # Relationships
     user = relationship("User", foreign_keys=[user_id], backref="friendships_sent")
@@ -88,7 +93,7 @@ class GlobalCourse(Base):
     semester = Column(String(50), nullable=False)  # e.g., "2024-2025-Fall"
     courses_json = Column(Text, nullable=False)  # JSON string of all courses
     uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    uploaded_at = Column(DateTime, default=datetime.utcnow)
+    uploaded_at = Column(DateTime, default=_utcnow)
     is_active = Column(Boolean, default=True)  # Current active semester
     
     def __repr__(self):
