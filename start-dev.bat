@@ -1,8 +1,14 @@
 @echo off
-title IşıkSchedule - Development Server
+setlocal
+set "ROOT=%~dp0"
+set "BACKEND_DIR=%ROOT%backend"
+set "FRONTEND_DIR=%ROOT%frontend"
+set "BACKEND_PYTHON=%ROOT%.venv\Scripts\python.exe"
+
+title IsikSchedule - Development Server
 echo.
 echo ========================================
-echo   IşıkSchedule Development Server
+echo   IsikSchedule Development Server
 echo ========================================
 echo.
 
@@ -14,8 +20,14 @@ for /f "tokens=5" %%a in ('netstat -ano ^| findstr :3000') do taskkill /F /PID %
 :: Start Backend
 echo.
 echo [2/3] Starting Backend (FastAPI on port 8000)...
-cd /d "%~dp0backend"
-start "IşıkSchedule Backend" cmd /k "py -m uvicorn app.main:app --reload --port 8000"
+cd /d "%BACKEND_DIR%"
+if exist "%BACKEND_PYTHON%" (
+    echo     Using project virtualenv: "%BACKEND_PYTHON%"
+    start "IsikSchedule Backend" cmd /k ""%BACKEND_PYTHON%" -m uvicorn app.main:app --reload --port 8000"
+) else (
+    echo     Project virtualenv not found, falling back to py launcher.
+    start "IsikSchedule Backend" cmd /k "py -m uvicorn app.main:app --reload --port 8000"
+)
 
 :: Wait a bit for backend to start
 timeout /t 3 /nobreak > nul
@@ -23,8 +35,8 @@ timeout /t 3 /nobreak > nul
 :: Start Frontend
 echo.
 echo [3/3] Starting Frontend (Next.js on port 3000)...
-cd /d "%~dp0frontend"
-start "IşıkSchedule Frontend" cmd /k "npm run dev"
+cd /d "%FRONTEND_DIR%"
+start "IsikSchedule Frontend" cmd /k "npm run dev"
 
 echo.
 echo ========================================
