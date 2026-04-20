@@ -4,6 +4,7 @@ Thumbs.db
 .idea/
 .vscode/
 .cursor/
+*.swp
 
 # Python
 .venv/
@@ -11,6 +12,7 @@ venv/
 __pycache__/
 *.py[cod]
 .pytest_cache/
+pytest-cache-files-*/
 .mypy_cache/
 .ruff_cache/
 .coverage
@@ -25,6 +27,7 @@ htmlcov/
 # Local app data
 /data.db
 /backend/data.db
+*.db.bak
 /uploads/
 /backend/uploads/
 
