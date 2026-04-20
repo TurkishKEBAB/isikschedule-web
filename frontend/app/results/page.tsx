@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import TeacherLink from '../components/TeacherLink';
 
 interface Course {
     code: string;
@@ -459,14 +460,14 @@ export default function ResultsPage() {
     // Loading
     if (['loading', 'processing', 'queued'].includes(status)) {
         return (
-            <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+            <div className="min-h-screen bg-surface-900 flex items-center justify-center">
                 <div className="text-center max-w-md">
-                    <div className="text-6xl mb-6 animate-bounce">🔄</div>
+                    <div className="w-12 h-12 border-3 border-isik-blue-lighter/30 border-t-isik-blue-lighter rounded-full animate-spin mx-auto mb-6" />
                     <h2 className="text-2xl font-bold text-white mb-4">Program Oluşturuluyor...</h2>
-                    <div className="w-full bg-slate-700 rounded-full h-3 mb-4">
-                        <div className="bg-blue-500 h-3 rounded-full transition-all" style={{ width: `${progress}%` }} />
+                    <div className="w-full bg-surface-700 rounded-full h-2 mb-4 overflow-hidden">
+                        <div className="bg-isik-blue-lighter h-2 rounded-full transition-all" style={{ width: `${progress}%` }} />
                     </div>
-                    <p className="text-slate-400">%{progress} tamamlandı</p>
+                    <p className="text-slate-400 text-sm">%{progress} tamamlandı</p>
                 </div>
             </div>
         );
@@ -475,12 +476,14 @@ export default function ResultsPage() {
     // Error
     if (error || status === 'error') {
         return (
-            <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+            <div className="min-h-screen bg-surface-900 flex items-center justify-center">
                 <div className="text-center">
-                    <div className="text-6xl mb-6">❌</div>
+                    <div className="w-16 h-16 rounded-2xl bg-red-500/10 flex items-center justify-center mx-auto mb-6">
+                        <span className="text-red-400 text-3xl">!</span>
+                    </div>
                     <h2 className="text-2xl font-bold text-white mb-4">Hata</h2>
                     <p className="text-slate-400 mb-6">{error}</p>
-                    <button onClick={() => window.history.back()} className="bg-blue-600 text-white px-6 py-3 rounded-lg">
+                    <button onClick={() => window.history.back()} className="btn-primary">
                         ← Geri Dön
                     </button>
                 </div>
@@ -555,7 +558,7 @@ export default function ResultsPage() {
     );
 
     return (
-        <div className="min-h-screen bg-slate-900 text-white">
+        <div className="min-h-screen bg-surface-900 text-white">
             {/* Header */}
             <header className="bg-slate-800 border-b border-slate-700 py-3 px-4">
                 <div className="max-w-[1800px] mx-auto flex justify-between items-center">
@@ -656,7 +659,7 @@ export default function ResultsPage() {
                                         <div className="font-bold mt-1">{course.code}</div>
                                         <div className="text-xs text-slate-400 truncate">{course.name}</div>
                                         <div className="text-xs text-slate-500 mt-1">
-                                            👨‍🏫 {course.teacher || 'Belirtilmemiş'}
+                                            👨‍🏫 <TeacherLink teacher={course.teacher} fallback="Belirtilmemiş" />
                                         </div>
                                         <div className="text-xs text-slate-500">
                                             📅 {course.schedule_str || course.schedule?.map(s => `${String(s[0]).slice(0, 3)}${s[1]}`).join(', ')}
@@ -804,7 +807,7 @@ export default function ResultsPage() {
                                         {selectedCourse.teacher?.charAt(0) || '?'}
                                     </div>
                                     <div>
-                                        <div className="font-medium">{selectedCourse.teacher || 'Belirtilmemiş'}</div>
+                                        <TeacherLink teacher={selectedCourse.teacher} fallback="Belirtilmemiş" className="font-medium" />
                                         <div className="text-xs text-slate-400">Öğretim Üyesi</div>
                                     </div>
                                 </div>

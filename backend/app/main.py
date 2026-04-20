@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import settings
-from app.api.routes import upload, generate, schedules, health, auth, admin, courses
+from app.api.routes import upload, generate, schedules, health, auth, admin, courses, friends
 from app.models.database import init_db, create_admin_user
 
 
@@ -59,6 +59,7 @@ app.include_router(courses.router, tags=["Courses"])
 app.include_router(upload.router, prefix="/api", tags=["Upload"])
 app.include_router(generate.router, prefix="/api", tags=["Generate"])
 app.include_router(schedules.router, prefix="/api", tags=["Schedules"])
+app.include_router(friends.router, prefix="/api", tags=["Friends"])
 
 
 @app.get("/")

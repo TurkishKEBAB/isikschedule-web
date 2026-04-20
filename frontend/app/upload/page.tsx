@@ -1,189 +1,162 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import Link from 'next/link';
+import { Upload, FileCheck, Loader2, X, ArrowRight, FileSpreadsheet } from 'lucide-react';
+import Navbar from '../components/Navbar';
+import { useToast } from '../components/Toast';
+import { API_BASE_URL } from '../lib/api';
 
 export default function UploadPage() {
+    const { toastError } = useToast();
     const [file, setFile] = useState<File | null>(null);
     const [isDragging, setIsDragging] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
+    const [isRedirecting, setIsRedirecting] = useState(false);
     const [uploadResult, setUploadResult] = useState<any>(null);
-    const [error, setError] = useState<string | null>(null);
 
-    const handleDragOver = useCallback((e: React.DragEvent) => {
-        e.preventDefault();
+    useEffect(() => {
+        if (!uploadResult) return;
+
+        const nextUrl = `/scheduler?file_id=${uploadResult.file_id}&source=${encodeURIComponent(uploadResult.filename)}`;
+        const redirectTimer = window.setTimeout(() => {
+            window.location.assign(nextUrl);
+        }, 150);
+
+        return () => window.clearTimeout(redirectTimer);
+    }, [uploadResult]);
+
+    const handleDragOver = useCallback((event: React.DragEvent) => {
+        event.preventDefault();
         setIsDragging(true);
     }, []);
 
-    const handleDragLeave = useCallback((e: React.DragEvent) => {
-        e.preventDefault();
+    const handleDragLeave = useCallback((event: React.DragEvent) => {
+        event.preventDefault();
         setIsDragging(false);
     }, []);
 
-    const handleDrop = useCallback((e: React.DragEvent) => {
-        e.preventDefault();
+    const handleDrop = useCallback((event: React.DragEvent) => {
+        event.preventDefault();
         setIsDragging(false);
+        const droppedFile = event.dataTransfer.files[0];
 
-        const droppedFile = e.dataTransfer.files[0];
         if (droppedFile && (droppedFile.name.endsWith('.xlsx') || droppedFile.name.endsWith('.xls'))) {
             setFile(droppedFile);
-            setError(null);
-        } else {
-            setError('Lütfen bir Excel dosyası (.xlsx veya .xls) yükleyin');
+            return;
         }
-    }, []);
 
-    const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-        const selectedFile = e.target.files?.[0];
-        if (selectedFile) {
-            setFile(selectedFile);
-            setError(null);
-        }
+        toastError('Lutfen bir Excel dosyasi (.xlsx veya .xls) yukleyin.');
+    }, [toastError]);
+
+    const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+        const selectedFile = event.target.files?.[0];
+        if (selectedFile) setFile(selectedFile);
     }, []);
 
     const handleUpload = async () => {
         if (!file) return;
 
         setIsUploading(true);
-        setError(null);
 
         try {
             const formData = new FormData();
             formData.append('file', file);
 
-            const response = await fetch('http://localhost:8000/api/upload', {
-                method: 'POST',
-                body: formData,
-            });
-
-            if (!response.ok) {
-                throw new Error('Yükleme başarısız');
-            }
+            const response = await fetch(`${API_BASE_URL}/api/upload`, { method: 'POST', body: formData });
+            if (!response.ok) throw new Error('Yukleme basarisiz.');
 
             const result = await response.json();
             setUploadResult(result);
-        } catch (err) {
-            setError('Dosya yüklenirken bir hata oluştu. Backend çalışıyor mu?');
+            setIsRedirecting(true);
+        } catch {
+            toastError('Dosya yuklenirken bir hata olustu. Backend calisiyor mu?');
+            setIsRedirecting(false);
         } finally {
             setIsUploading(false);
         }
     };
 
     return (
-        <main className="min-h-screen bg-gray-50">
-            {/* Header */}
-            <header className="bg-isik-blue text-white py-4 px-6 shadow-lg">
-                <div className="max-w-7xl mx-auto flex justify-between items-center">
-                    <Link href="/" className="text-2xl font-bold">🎓 IşıkSchedule</Link>
-                    <nav className="flex gap-6">
-                        <Link href="/upload" className="text-isik-gold font-bold">Upload</Link>
-                        <Link href="/about" className="hover:text-isik-gold transition">About</Link>
-                    </nav>
+        <main className="min-h-screen bg-surface-900">
+            <Navbar />
+
+            <div className="max-w-2xl mx-auto py-16 px-6">
+                <div className="text-center mb-10">
+                    <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-isik-blue/20 to-purple-500/20 border border-white/5 mb-4">
+                        <Upload className="w-7 h-7 text-isik-blue-lighter" />
+                    </div>
+                    <h1 className="text-2xl font-bold text-white mb-2">Ders programi yukle</h1>
+                    <p className="text-sm text-slate-500">Excel dosyanizi surukleyip birakin veya secin.</p>
                 </div>
-            </header>
 
-            {/* Main Content */}
-            <div className="max-w-4xl mx-auto py-12 px-6">
-                <h1 className="text-3xl font-bold text-gray-800 mb-2">📤 Ders Programı Yükle</h1>
-                <p className="text-gray-600 mb-8">
-                    Excel dosyanızı sürükleyip bırakın veya seçin
-                </p>
-
-                {/* Drop Zone */}
                 <div
                     onDragOver={handleDragOver}
                     onDragLeave={handleDragLeave}
                     onDrop={handleDrop}
-                    className={`
-            border-2 border-dashed rounded-xl p-12 text-center transition-all cursor-pointer
-            ${isDragging
-                            ? 'border-isik-blue bg-blue-50'
-                            : 'border-gray-300 hover:border-isik-blue hover:bg-gray-50'
-                        }
-            ${file ? 'bg-green-50 border-green-500' : ''}
-          `}
+                    className={`glass-panel p-10 text-center transition-all cursor-pointer
+                        ${isDragging ? '!border-isik-blue-lighter !bg-isik-blue-lighter/5' : ''}
+                        ${file ? '!border-emerald-500/30 !bg-emerald-500/5' : ''}`}
                 >
                     {file ? (
                         <div>
-                            <div className="text-5xl mb-4">✅</div>
-                            <p className="text-lg font-medium text-gray-800">{file.name}</p>
-                            <p className="text-sm text-gray-500 mt-1">
-                                {(file.size / 1024).toFixed(1)} KB
-                            </p>
-                            <button
-                                onClick={() => setFile(null)}
-                                className="mt-4 text-red-500 hover:text-red-700 text-sm"
-                            >
-                                Dosyayı kaldır
+                            <FileCheck className="w-12 h-12 text-emerald-400 mx-auto mb-3" />
+                            <p className="text-base font-medium text-white">{file.name}</p>
+                            <p className="text-xs text-slate-500 mt-1">{(file.size / 1024).toFixed(1)} KB</p>
+                            <button onClick={() => setFile(null)} className="mt-3 text-red-400 hover:text-red-300 text-sm flex items-center gap-1 mx-auto transition-colors">
+                                <X className="w-3.5 h-3.5" /> Dosyayi kaldir
                             </button>
                         </div>
                     ) : (
                         <div>
-                            <div className="text-5xl mb-4">📁</div>
-                            <p className="text-lg font-medium text-gray-700">
-                                Excel dosyanızı buraya sürükleyin
-                            </p>
-                            <p className="text-sm text-gray-500 mt-2">veya</p>
-                            <label className="mt-4 inline-block cursor-pointer">
-                                <span className="bg-isik-blue text-white px-6 py-2 rounded-lg hover:bg-isik-blue-dark transition">
-                                    Dosya Seç
-                                </span>
-                                <input
-                                    type="file"
-                                    accept=".xlsx,.xls"
-                                    onChange={handleFileSelect}
-                                    className="hidden"
-                                />
+                            <FileSpreadsheet className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+                            <p className="text-base font-medium text-slate-300 mb-1">Excel dosyanizi buraya surukleyin</p>
+                            <p className="text-xs text-slate-600 mb-4">veya</p>
+                            <label className="cursor-pointer">
+                                <span className="btn-primary">Dosya sec</span>
+                                <input type="file" accept=".xlsx,.xls" onChange={handleFileSelect} className="hidden" />
                             </label>
                         </div>
                     )}
                 </div>
 
-                {/* Error Message */}
-                {error && (
-                    <div className="mt-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
-                        ⚠️ {error}
-                    </div>
-                )}
-
-                {/* Upload Button */}
                 {file && !uploadResult && (
-                    <button
-                        onClick={handleUpload}
-                        disabled={isUploading}
-                        className={`
-              mt-6 w-full py-4 rounded-lg text-lg font-bold transition
-              ${isUploading
-                                ? 'bg-gray-400 cursor-not-allowed'
-                                : 'bg-isik-blue text-white hover:bg-isik-blue-dark'
-                            }
-            `}
-                    >
-                        {isUploading ? '⏳ Yükleniyor...' : '🚀 Yükle ve Devam Et'}
+                    <button onClick={handleUpload} disabled={isUploading} className="btn-primary w-full !py-3.5 mt-6 !text-base">
+                        {isUploading ? (
+                            <><Loader2 className="w-5 h-5 animate-spin" />Yukleniyor...</>
+                        ) : (
+                            <>Yukle ve scheduler'a gec <ArrowRight className="w-5 h-5" /></>
+                        )}
                     </button>
                 )}
 
-                {/* Upload Result */}
                 {uploadResult && (
-                    <div className="mt-8 p-6 bg-white rounded-xl shadow-lg">
-                        <h2 className="text-xl font-bold text-gray-800 mb-4">
-                            ✅ Yükleme Başarılı!
-                        </h2>
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                            <div className="bg-gray-50 p-4 rounded-lg">
-                                <p className="text-gray-500">Dosya</p>
-                                <p className="font-medium">{uploadResult.filename}</p>
+                    <div className="glass-panel p-6 mt-8">
+                        <div className="flex items-center gap-3 mb-4">
+                            <FileCheck className="w-6 h-6 text-emerald-400" />
+                            <h2 className="text-lg font-semibold text-white">Yukleme basarili</h2>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3 mb-5">
+                            <div className="bg-surface-700/30 rounded-xl p-3">
+                                <p className="text-[11px] text-slate-500 uppercase tracking-wider">Dosya</p>
+                                <p className="text-sm font-medium text-white mt-1 truncate">{uploadResult.filename}</p>
                             </div>
-                            <div className="bg-gray-50 p-4 rounded-lg">
-                                <p className="text-gray-500">Ders Sayısı</p>
-                                <p className="font-medium">{uploadResult.course_count}</p>
+                            <div className="bg-surface-700/30 rounded-xl p-3">
+                                <p className="text-[11px] text-slate-500 uppercase tracking-wider">Ders sayisi</p>
+                                <p className="text-sm font-medium text-white mt-1">{uploadResult.course_count}</p>
                             </div>
                         </div>
+                        {isRedirecting && (
+                            <div className="flex items-center justify-center gap-2 text-sm text-isik-blue-lighter mb-4">
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <span>Scheduler'a yonlendiriliyor...</span>
+                            </div>
+                        )}
                         <Link
-                            href={`/results?file_id=${uploadResult.file_id}`}
-                            className="mt-6 block w-full text-center bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-lg font-bold hover:from-blue-700 hover:to-purple-700 transition"
+                            href={`/scheduler?file_id=${uploadResult.file_id}&source=${encodeURIComponent(uploadResult.filename)}`}
+                            className="btn-primary w-full !py-3"
                         >
-                            🎯 Programa Geç
+                            Scheduler'a gec <ArrowRight className="w-4 h-4" />
                         </Link>
                     </div>
                 )}

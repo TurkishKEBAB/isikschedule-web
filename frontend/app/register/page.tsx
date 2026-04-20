@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { GraduationCap, Mail, Lock, Sparkles, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function RegisterPage() {
@@ -16,19 +17,9 @@ export default function RegisterPage() {
         e.preventDefault();
         setError('');
 
-        // Validate passwords match
-        if (password !== confirmPassword) {
-            setError('Şifreler eşleşmiyor');
-            return;
-        }
+        if (password !== confirmPassword) { setError('Şifreler eşleşmiyor'); return; }
+        if (password.length < 6) { setError('Şifre en az 6 karakter olmalı'); return; }
 
-        // Validate password length
-        if (password.length < 6) {
-            setError('Şifre en az 6 karakter olmalı');
-            return;
-        }
-
-        // Validate email domain
         const domain = email.split('@')[1]?.toLowerCase();
         if (domain !== 'isik.edu.tr' && domain !== 'isikun.edu.tr') {
             setError('E-posta @isik.edu.tr veya @isikun.edu.tr olmalı');
@@ -36,7 +27,6 @@ export default function RegisterPage() {
         }
 
         setIsLoading(true);
-
         try {
             await register(email, password);
         } catch (err: any) {
@@ -47,79 +37,80 @@ export default function RegisterPage() {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
-            <div className="w-full max-w-md">
+        <div className="min-h-screen bg-surface-900 flex items-center justify-center p-4 relative overflow-hidden">
+            <div className="absolute inset-0 pointer-events-none">
+                <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-gradient-to-b from-purple-500/10 to-transparent rounded-full blur-3xl" />
+            </div>
+
+            <div className="relative w-full max-w-sm">
                 {/* Logo */}
                 <div className="text-center mb-8">
-                    <Link href="/" className="text-4xl font-bold text-white">
-                        🎓 IşıkSchedule
-                    </Link>
-                    <p className="text-slate-400 mt-2">Hesap Oluştur</p>
+                    <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-600 to-pink-500 shadow-xl shadow-purple-500/20 mb-4">
+                        <GraduationCap className="w-7 h-7 text-white" />
+                    </div>
+                    <h1 className="text-2xl font-bold text-white">IşıkSchedule</h1>
+                    <p className="text-sm text-slate-500 mt-1">Hesap Oluştur</p>
                 </div>
 
-                {/* Register Form */}
-                <div className="bg-slate-800/80 backdrop-blur rounded-2xl p-8 border border-slate-700 shadow-2xl">
-                    <h1 className="text-2xl font-bold text-white mb-6 text-center">Kayıt Ol</h1>
+                {/* Form */}
+                <div className="glass-panel p-6">
+                    <h2 className="text-lg font-semibold text-white text-center mb-6">Kayıt Ol</h2>
 
                     {error && (
-                        <div className="bg-red-500/20 border border-red-500 text-red-300 px-4 py-3 rounded-lg mb-6">
-                            ⚠️ {error}
+                        <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm mb-5">
+                            <span className="flex-shrink-0 mt-0.5">!</span>
+                            <span>{error}</span>
                         </div>
                     )}
 
-                    <form onSubmit={handleSubmit} className="space-y-5">
+                    <form onSubmit={handleSubmit} className="space-y-4">
                         <div>
-                            <label className="block text-sm text-slate-400 mb-2">E-posta</label>
-                            <input
-                                type="email"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                placeholder="ornek@isik.edu.tr"
-                                className="w-full p-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 transition"
-                                required
-                            />
-                            <p className="text-xs text-slate-500 mt-1">
-                                @isik.edu.tr veya @isikun.edu.tr
-                            </p>
+                            <label className="text-[11px] font-medium uppercase tracking-wider text-slate-500 block mb-1.5">E-posta</label>
+                            <div className="relative">
+                                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                                <input
+                                    type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                                    placeholder="ornek@isik.edu.tr" className="input-field !pl-10" required
+                                />
+                            </div>
+                            <p className="text-[10px] text-slate-600 mt-1 pl-1">@isik.edu.tr veya @isikun.edu.tr</p>
                         </div>
 
                         <div>
-                            <label className="block text-sm text-slate-400 mb-2">Şifre</label>
-                            <input
-                                type="password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                placeholder="••••••••"
-                                className="w-full p-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 transition"
-                                required
-                                minLength={6}
-                            />
+                            <label className="text-[11px] font-medium uppercase tracking-wider text-slate-500 block mb-1.5">Şifre</label>
+                            <div className="relative">
+                                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                                <input
+                                    type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+                                    placeholder="••••••••" className="input-field !pl-10" required minLength={6}
+                                />
+                            </div>
                         </div>
 
                         <div>
-                            <label className="block text-sm text-slate-400 mb-2">Şifre Tekrar</label>
-                            <input
-                                type="password"
-                                value={confirmPassword}
-                                onChange={(e) => setConfirmPassword(e.target.value)}
-                                placeholder="••••••••"
-                                className="w-full p-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 transition"
-                                required
-                            />
+                            <label className="text-[11px] font-medium uppercase tracking-wider text-slate-500 block mb-1.5">Şifre Tekrar</label>
+                            <div className="relative">
+                                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                                <input
+                                    type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+                                    placeholder="••••••••" className="input-field !pl-10" required
+                                />
+                            </div>
                         </div>
 
-                        <button
-                            type="submit"
-                            disabled={isLoading}
-                            className="w-full py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-lg hover:from-purple-700 hover:to-pink-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            {isLoading ? '⏳ Kayıt yapılıyor...' : '✨ Kayıt Ol'}
+                        <button type="submit" disabled={isLoading}
+                            className="btn w-full !py-3 bg-gradient-to-r from-purple-600 to-pink-500 text-white hover:from-purple-700 hover:to-pink-600 shadow-lg shadow-purple-500/20">
+                            {isLoading ? (
+                                <><Loader2 className="w-4 h-4 animate-spin" />Kayıt yapılıyor...</>
+                            ) : (
+                                <><Sparkles className="w-4 h-4" />Kayıt Ol</>
+                            )}
                         </button>
                     </form>
 
-                    <div className="mt-6 text-center text-slate-400">
+                    <div className="mt-5 text-center text-sm text-slate-500">
                         Zaten hesabınız var mı?{' '}
-                        <Link href="/login" className="text-purple-400 hover:text-purple-300">
+                        <Link href="/login" className="text-purple-400 hover:text-purple-300 transition-colors font-medium">
                             Giriş Yap
                         </Link>
                     </div>

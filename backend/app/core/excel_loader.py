@@ -38,11 +38,12 @@ COLUMN_MAP = {
     "Ders İsmi": "name",
     "Title": "name",
     "AKTS Kredisi": "ects",
+    "KTS Kred": "ects",
     "AKTS": "ects",
     "ECTS": "ects",
     "Kredi": "ects",
-    "Credit": "ects",
-    "Kampüs": "campus",
+    "Credit": "ects",    "KTS Kred": "ects",
+    "rel Kr": "ects",    "Kampüs": "campus",
     "Campus": "campus",
     "Eğitmen Adı": "teacher_first",
     "Teacher First Name": "teacher_first",
@@ -199,11 +200,21 @@ def process_excel(file_path: Union[str, Path], sheet_name: Union[str, int] = 0) 
 
             # Parse ECTS
             ects = 0
-            if "ects" in df.columns and pd.notna(row.get("ects")):
-                try:
-                    ects = int(float(row["ects"]))
-                except (ValueError, TypeError):
-                    ects = 0
+            if "ects" in df.columns:
+                ects_val = row.get("ects")
+                if isinstance(ects_val, pd.Series):
+                    for val in reversed(list(ects_val)):
+                        if pd.notna(val) and str(val).strip():
+                            try:
+                                ects = int(float(val))
+                                break
+                            except (ValueError, TypeError):
+                                pass
+                elif pd.notna(ects_val):
+                    try:
+                        ects = int(float(ects_val))
+                    except (ValueError, TypeError):
+                        pass
 
             # Parse schedule
             schedule_str = ""

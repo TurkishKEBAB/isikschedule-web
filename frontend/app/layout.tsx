@@ -6,8 +6,8 @@ import { ClientProviders } from './providers';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-    title: 'IşıkSchedule - Course Schedule Generator',
-    description: 'Create optimal course schedules for Işık University students',
+    title: 'IşıkSchedule — Ders Programı Oluşturucu',
+    description: 'Işık Üniversitesi öğrencileri için akıllı ders programı oluşturucu',
     keywords: ['schedule', 'university', 'course', 'işık', 'timetable'],
 };
 
@@ -18,11 +18,9 @@ export default function RootLayout({
 }) {
     return (
         <html lang="tr" suppressHydrationWarning>
-            <body className={inter.className} suppressHydrationWarning>
+            <body className={`${inter.className} bg-surface-900 text-slate-100 antialiased`} suppressHydrationWarning>
                 <ClientProviders>
-                    <div className="min-h-screen bg-gray-50">
-                        {children}
-                    </div>
+                    {children}
                 </ClientProviders>
             </body>
         </html>
