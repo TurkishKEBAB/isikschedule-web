@@ -36,6 +36,14 @@ cd frontend
 npm run dev
 ```
 
+First-time setup:
+
+```powershell
+pip install -r backend\requirements.txt
+cd frontend
+npm install
+```
+
 ## Things to watch closely
 
 - `frontend/app/lib/api.ts` points to `http://localhost:8000` by default.
