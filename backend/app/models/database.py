@@ -109,23 +109,34 @@ def init_db():
 
 
 def create_admin_user():
-    """Create initial admin user if not exists."""
+    """Create initial admin user if not exists, using settings (Phase 1.4)."""
     from ..core.auth import get_password_hash
-    
+    from ..config import DEFAULT_ADMIN_EMAIL, DEFAULT_ADMIN_PASSWORD
+    import logging
+
+    log = logging.getLogger("isikschedule")
+    admin_email = settings.ADMIN_EMAIL
+    admin_password = settings.ADMIN_PASSWORD
+
+    if admin_email == DEFAULT_ADMIN_EMAIL or admin_password == DEFAULT_ADMIN_PASSWORD:
+        log.warning(
+            "Using built-in ADMIN_EMAIL/ADMIN_PASSWORD default. "
+            "Override via .env before deploying."
+        )
+
     db = SessionLocal()
     try:
-        # Check if admin exists
-        admin = db.query(User).filter(User.email == "23soft1040@isik.edu.tr").first()
+        admin = db.query(User).filter(User.email == admin_email).first()
         if not admin:
             admin = User(
-                email="23soft1040@isik.edu.tr",
-                password_hash=get_password_hash("yigit12okur1212"),
-                role="admin"
+                email=admin_email,
+                password_hash=get_password_hash(admin_password),
+                role="admin",
             )
             db.add(admin)
             db.commit()
-            print("Admin user created: 23soft1040@isik.edu.tr")
+            log.info("Admin user created: %s", admin_email)
         else:
-            print("Admin user already exists.")
+            log.info("Admin user already exists: %s", admin_email)
     finally:
         db.close()

@@ -9,6 +9,8 @@ from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEFAULT_SECRET_KEY = "change-me-in-production"
+DEFAULT_ADMIN_EMAIL = "23soft1040@isik.edu.tr"
+DEFAULT_ADMIN_PASSWORD = "yigit12okur1212"
 
 
 class Settings(BaseSettings):
@@ -50,6 +52,11 @@ class Settings(BaseSettings):
     JOB_TIMEOUT_SECONDS: int = 300
     MAX_SCHEDULES_PER_JOB: int = 50
 
+    # Admin bootstrap — development defaults are accepted with a warning;
+    # production requires both to be set (see _require_production_admin).
+    ADMIN_EMAIL: str = DEFAULT_ADMIN_EMAIL
+    ADMIN_PASSWORD: str = DEFAULT_ADMIN_PASSWORD  # noqa: S105
+
     @field_validator("DEBUG", mode="before")
     @classmethod
     def parse_debug(cls, value: Any) -> Any:
@@ -78,14 +85,19 @@ class Settings(BaseSettings):
         return value
 
     @model_validator(mode="after")
-    def _require_production_secret(self) -> "Settings":
-        # Block the insecure default SECRET_KEY in production so a forgotten
-        # env var can never be used to sign real tokens.
-        if self.APP_ENV.lower() in {"production", "prod"} and self.SECRET_KEY == DEFAULT_SECRET_KEY:
-            raise ValueError(
-                "SECRET_KEY must be overridden in production "
-                "(set SECRET_KEY env var or .env entry)."
-            )
+    def _require_production_secrets(self) -> "Settings":
+        # Block insecure defaults in production so a forgotten env var can
+        # never sign real tokens or ship a well-known admin credential.
+        if self.APP_ENV.lower() in {"production", "prod"}:
+            if self.SECRET_KEY == DEFAULT_SECRET_KEY:
+                raise ValueError(
+                    "SECRET_KEY must be overridden in production "
+                    "(set SECRET_KEY env var or .env entry)."
+                )
+            if self.ADMIN_EMAIL == DEFAULT_ADMIN_EMAIL or self.ADMIN_PASSWORD == DEFAULT_ADMIN_PASSWORD:
+                raise ValueError(
+                    "ADMIN_EMAIL and ADMIN_PASSWORD must be overridden in production."
+                )
         return self
 
     @property
