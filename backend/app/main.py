@@ -49,12 +49,21 @@ app = FastAPI(
 )
 
 # CORS Middleware
+# Phase 1.8: dev keeps the permissive wildcard behavior (configured via
+# CORS_ORIGINS in .env, typically localhost:3000). Production narrows methods
+# and headers to only what the frontend actually uses, so a leaked token
+# cannot be exfiltrated via arbitrary cross-origin requests.
+_is_production = settings.APP_ENV.lower() in {"production", "prod"}
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=(
+        ["GET", "POST", "PUT", "DELETE", "OPTIONS"] if _is_production else ["*"]
+    ),
+    allow_headers=(
+        ["Authorization", "Content-Type", "Accept"] if _is_production else ["*"]
+    ),
 )
 
 
