@@ -5,7 +5,7 @@ import os
 import uuid
 import logging
 from typing import Dict, List, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 from itertools import product
 
 from fastapi import APIRouter, HTTPException
@@ -225,7 +225,10 @@ def load_courses_for_generation(file_id: str) -> List[dict]:
         finally:
             db.close()
 
-    file_path = os.path.join(settings.UPLOAD_DIR, f"{file_id}.xlsx")
+    # Reuse the upload-route path resolver so file_id is validated against
+    # the UUID4 pattern (Phase 1.7 — no path traversal via file_id).
+    from .upload import _resolve_upload_path
+    file_path = _resolve_upload_path(file_id)
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found")
 
@@ -254,7 +257,7 @@ async def start_generation(request: GenerateRequest):
         "progress": 0,
         "message": "Starting generation...",
         "result": None,
-        "created_at": datetime.utcnow().isoformat()
+        "created_at": datetime.now(timezone.utc).isoformat()
     }
     
     try:

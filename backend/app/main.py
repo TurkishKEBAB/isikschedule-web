@@ -4,6 +4,7 @@ IşıkSchedule Backend - FastAPI Application
 Enterprise-grade course scheduling API.
 """
 
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,6 +13,12 @@ from fastapi.responses import JSONResponse
 from app.config import settings
 from app.api.routes import upload, generate, schedules, health, auth, admin, courses, friends
 from app.models.database import init_db, create_admin_user
+
+logging.basicConfig(
+    level=logging.DEBUG if settings.DEBUG else logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logger = logging.getLogger("isikschedule")
 
 
 @asynccontextmanager
@@ -42,12 +49,21 @@ app = FastAPI(
 )
 
 # CORS Middleware
+# Phase 1.8: dev keeps the permissive wildcard behavior (configured via
+# CORS_ORIGINS in .env, typically localhost:3000). Production narrows methods
+# and headers to only what the frontend actually uses, so a leaked token
+# cannot be exfiltrated via arbitrary cross-origin requests.
+_is_production = settings.APP_ENV.lower() in {"production", "prod"}
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=(
+        ["GET", "POST", "PUT", "DELETE", "OPTIONS"] if _is_production else ["*"]
+    ),
+    allow_headers=(
+        ["Authorization", "Content-Type", "Accept"] if _is_production else ["*"]
+    ),
 )
 
 
@@ -75,7 +91,8 @@ async def root():
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
-    """Global exception handler."""
+    """Global exception handler — logs full traceback, keeps response shape stable (K6)."""
+    logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
     return JSONResponse(
         status_code=500,
         content={
