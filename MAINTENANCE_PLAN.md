@@ -472,7 +472,7 @@ Bunlar ana plan değil. Faz 5 bittikten sonra öncelik sıralaması yapılır.
 
 | Faz | Durum | Başlama | Bitiş | Branch | Not |
 |---|---|---|---|---|---|
-| Faz 0 — Temizlik & Baseline | ⬜ | — | — | — | Buradan başla |
+| Faz 0 — Temizlik & Baseline | ✅ | 2026-04-20 | 2026-04-20 | `master` (snapshot: `backup/pre-stabilization-20260420`) | K4 sapması: feature branch yerine doğrudan master'da yapıldı (önceden gelen auto-commit master'daydı). Son commit: `a7cb06a`. Bilinen artık: `backend/pytest-cache-files-*` dizinleri OS ACL kilidi nedeniyle silinemedi — `.gitignore`'da, manuel admin temizliği gerekiyor. |
 | Faz 0.5 — Smoke Tests | ⬜ | — | — | — | Faz 1 öncesi zorunlu |
 | Faz 1 — Güvenlik & Tutarlılık | ⬜ | — | — | — | SECRET_KEY → DB URL → logging → admin → share → datetime → upload → CORS |
 | Faz 2 — Generate/Share Mimarisi | ⬜ | — | — | — | 2.1 akış modeli kararı önce |
