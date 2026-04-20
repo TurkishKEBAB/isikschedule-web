@@ -1,0 +1,51 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.cursor/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local environment files
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+# Local app data
+/data.db
+/backend/data.db
+/uploads/
+/backend/uploads/
+
+# Next.js / Node
+/frontend/node_modules/
+/frontend/.next/
+/frontend/out/
+/frontend/build/
+/frontend/coverage/
+/frontend/.pnp
+/frontend/.pnp.js
+/frontend/.yarn/
+/frontend/*.tsbuildinfo
+/frontend/next-env.d.ts
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+ts-debug.log*
+
+# Tooling output
+/.scannerwork/
