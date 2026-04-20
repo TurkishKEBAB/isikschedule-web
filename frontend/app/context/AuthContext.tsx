@@ -140,8 +140,8 @@ export function RequireAuth({ children, adminOnly = false }: { children: ReactNo
 
     if (isLoading) {
         return (
-            <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-                <div className="text-white text-xl">Yükleniyor...</div>
+            <div className="min-h-screen bg-surface-900 flex items-center justify-center">
+                <div className="w-6 h-6 border-2 border-isik-blue-lighter/30 border-t-isik-blue-lighter rounded-full animate-spin" />
             </div>
         );
     }

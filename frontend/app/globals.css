@@ -2,41 +2,178 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --isik-blue: #0018A8;
-  --isik-gold: #FFD700;
+@layer base {
+  :root {
+    --isik-blue: #0018A8;
+    --isik-gold: #F59E0B;
+    --surface-900: #0F172A;
+    --surface-800: #1E293B;
+    --surface-700: #334155;
+    --surface-600: #475569;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Selection */
+  ::selection {
+    background: rgba(59, 130, 246, 0.3);
+    color: #f1f5f9;
+  }
 }
 
-body {
-  font-family: 'Inter', system-ui, sans-serif;
+@layer components {
+  /* Glassmorphic panel */
+  .glass-panel {
+    @apply bg-surface-800/80 backdrop-blur-md border border-white/5 rounded-2xl;
+  }
+
+  /* Subtle hover card */
+  .hover-card {
+    @apply transition-all duration-150 hover:bg-white/5 active:scale-[0.98];
+  }
+
+  /* Input field */
+  .input-field {
+    @apply w-full px-4 py-3 bg-surface-700/50 border border-white/10 rounded-xl text-slate-100 
+           placeholder-slate-500 outline-none transition-all duration-150
+           focus:border-isik-blue-lighter/50 focus:ring-2 focus:ring-isik-blue-lighter/20;
+  }
+
+  /* Badge */
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium;
+  }
+
+  .badge-blue {
+    @apply bg-blue-500/20 text-blue-300;
+  }
+
+  .badge-purple {
+    @apply bg-purple-500/20 text-purple-300;
+  }
+
+  .badge-green {
+    @apply bg-emerald-500/20 text-emerald-300;
+  }
+
+  .badge-red {
+    @apply bg-red-500/20 text-red-300;
+  }
+
+  /* Button base */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-medium text-sm
+           transition-all duration-150 active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply btn bg-gradient-to-r from-isik-blue to-isik-blue-light text-white 
+           hover:from-isik-blue-light hover:to-blue-700 shadow-lg shadow-blue-500/20;
+  }
+
+  .btn-secondary {
+    @apply btn bg-surface-700/80 text-slate-200 border border-white/10
+           hover:bg-surface-600/80 hover:border-white/20;
+  }
+
+  .btn-ghost {
+    @apply btn bg-transparent text-slate-400 hover:text-slate-200 hover:bg-white/5;
+  }
+
+  .btn-danger {
+    @apply btn bg-red-500/20 text-red-400 border border-red-500/30
+           hover:bg-red-500/30;
+  }
+
+  .btn-success {
+    @apply btn bg-emerald-500/20 text-emerald-400 border border-emerald-500/30
+           hover:bg-emerald-500/30;
+  }
 }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 4px;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 4px;
+  background: rgba(148, 163, 184, 0.2);
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #a1a1a1;
+  background: rgba(148, 163, 184, 0.4);
 }
 
-/* Loading animation */
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
+/* Print styles: keep only the schedule grid on paper */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 12mm;
+  }
 
-.animate-pulse {
-  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  html,
+  body,
+  #__next,
+  main,
+  .print-area,
+  .print-area * {
+    color: #0f172a !important;
+  }
+
+  .print-area {
+    position: static !important;
+    display: block !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    height: auto !important;
+    width: 100% !important;
+  }
+
+  .print-area .glass-panel {
+    background: #ffffff !important;
+    border: 1px solid #cbd5f5 !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+    border-radius: 8px !important;
+    page-break-inside: avoid;
+  }
+
+  .print-area table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 11pt !important;
+  }
+
+  .print-area th,
+  .print-area td {
+    border: 1px solid #cbd5f5 !important;
+    color: #0f172a !important;
+  }
+
+  .print-area th {
+    background: #eef2ff !important;
+  }
+
+  .print-area td > button {
+    display: none !important;
+  }
 }

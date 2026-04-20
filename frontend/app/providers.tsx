@@ -2,12 +2,15 @@
 
 import { LanguageProvider } from './context/LanguageContext';
 import { AuthProvider } from './context/AuthContext';
+import { ToastProvider } from './components/Toast';
 
 export function ClientProviders({ children }: { children: React.ReactNode }) {
     return (
         <AuthProvider>
             <LanguageProvider>
-                {children}
+                <ToastProvider>
+                    {children}
+                </ToastProvider>
             </LanguageProvider>
         </AuthProvider>
     );
