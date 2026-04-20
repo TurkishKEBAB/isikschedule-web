@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 
+from ...config import settings
 from ...models.database import get_db, User
 from ...core.auth import (
     authenticate_user,
@@ -15,7 +16,6 @@ from ...core.auth import (
     get_password_hash,
     get_current_user,
     validate_email_domain,
-    ACCESS_TOKEN_EXPIRE_MINUTES
 )
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -83,7 +83,7 @@ async def register(request: RegisterRequest, db: Session = Depends(get_db)):
     # Create token
     access_token = create_access_token(
         data={"sub": user.email},
-        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
     
     return TokenResponse(
@@ -110,7 +110,7 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
     
     access_token = create_access_token(
         data={"sub": user.email},
-        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
     
     return TokenResponse(

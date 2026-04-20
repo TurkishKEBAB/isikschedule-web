@@ -5,27 +5,33 @@ Application configuration using pydantic-settings.
 from functools import lru_cache
 from typing import Any, List
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+DEFAULT_SECRET_KEY = "change-me-in-production"
 
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
-    
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=True,
     )
-    
+
     # Application
     APP_NAME: str = "IşıkSchedule"
     APP_ENV: str = "development"
     DEBUG: bool = True
-    SECRET_KEY: str = "change-me-in-production"
-    
+    SECRET_KEY: str = DEFAULT_SECRET_KEY
+
+    # Auth / JWT
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+
     # Database
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/isikschedule"
+    DATABASE_URL: str = "sqlite:///./data.db"
     
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
@@ -70,7 +76,18 @@ class Settings(BaseSettings):
                 return value
             return [origin.strip() for origin in stripped.split(",") if origin.strip()]
         return value
-    
+
+    @model_validator(mode="after")
+    def _require_production_secret(self) -> "Settings":
+        # Block the insecure default SECRET_KEY in production so a forgotten
+        # env var can never be used to sign real tokens.
+        if self.APP_ENV.lower() in {"production", "prod"} and self.SECRET_KEY == DEFAULT_SECRET_KEY:
+            raise ValueError(
+                "SECRET_KEY must be overridden in production "
+                "(set SECRET_KEY env var or .env entry)."
+            )
+        return self
+
     @property
     def max_file_size_bytes(self) -> int:
         return self.MAX_FILE_SIZE_MB * 1024 * 1024
