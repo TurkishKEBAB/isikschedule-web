@@ -46,7 +46,9 @@ class SavedSchedule(Base):
     __tablename__ = "saved_schedules"
     
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    # Nullable since Phase 1.5: anonymous shares have no owner. Filter
+    # user_id IS NOT NULL when listing a user's own saved schedules.
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     name = Column(String(255), nullable=False)
     courses_json = Column(Text, nullable=False)  # JSON string of courses
     created_at = Column(DateTime, default=datetime.utcnow)

@@ -82,32 +82,27 @@ class ShareAnonymousRequest(BaseModel):
 
 @router.post("/schedules/share")
 async def share_anonymous_schedule(request: ShareAnonymousRequest, db: Session = Depends(get_db)):
-    """Generate a shareable link for an anonymous schedule."""
+    """Generate a shareable link for an anonymous schedule.
+
+    Phase 1.5: anonymous shares have user_id=NULL rather than being pinned
+    to the first user in the table.
+    """
     import json
     share_id = str(uuid.uuid4())[:16]
-    
-    # We must have user_id, let's just make it 1 or create a dummy SavedSchedule without user_id if possible.
-    # actually, user_id is required in DB. 
-    # Let's just create a quick dict or store in cache? 
-    # Or just use user_id = 1 (assuming admin exists).
-    from ...models.database import User
-    admin = db.query(User).first()
-    if not admin:
-        raise HTTPException(status_code=500, detail="No users exist to bind schedule to")
 
     schedule = SavedSchedule(
-        user_id=admin.id,
+        user_id=None,
         name="Shared Schedule",
         courses_json=json.dumps(request.dict().get("courses", [])),
-        share_id=share_id
+        share_id=share_id,
     )
     db.add(schedule)
     db.commit()
     db.refresh(schedule)
-    
+
     return {
         "share_code": schedule.share_id,
-        "share_url": f"/s/{schedule.share_id}"
+        "share_url": f"/s/{schedule.share_id}",
     }
 
 @router.post("/schedules/share/{schedule_id}")
