@@ -4,6 +4,7 @@ IşıkSchedule Backend - FastAPI Application
 Enterprise-grade course scheduling API.
 """
 
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,6 +13,12 @@ from fastapi.responses import JSONResponse
 from app.config import settings
 from app.api.routes import upload, generate, schedules, health, auth, admin, courses, friends
 from app.models.database import init_db, create_admin_user
+
+logging.basicConfig(
+    level=logging.DEBUG if settings.DEBUG else logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logger = logging.getLogger("isikschedule")
 
 
 @asynccontextmanager
@@ -75,7 +82,8 @@ async def root():
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
-    """Global exception handler."""
+    """Global exception handler — logs full traceback, keeps response shape stable (K6)."""
+    logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
     return JSONResponse(
         status_code=500,
         content={
