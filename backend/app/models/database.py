@@ -58,6 +58,25 @@ class SavedSchedule(Base):
         return f"<SavedSchedule {self.name}>"
 
 
+class Friendship(Base):
+    """Friendship relationship between two users."""
+    __tablename__ = "friendships"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    friend_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    status = Column(String(50), default="pending")  # "pending", "accepted", "rejected"
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", foreign_keys=[user_id], backref="friendships_sent")
+    friend = relationship("User", foreign_keys=[friend_id], backref="friendships_received")
+
+    def __repr__(self):
+        return f"<Friendship {self.user_id} -> {self.friend_id} ({self.status})>"
+
+
 class GlobalCourse(Base):
     """Global course data uploaded by admin."""
     __tablename__ = "global_courses"

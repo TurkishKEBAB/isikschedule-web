@@ -57,7 +57,9 @@ class Course:
             has_lecture=data.get("has_lecture", data.get("hasLecture", False)),
             faculty=data.get("faculty", "Unknown Faculty"),
             department=data.get("department", "Unknown Department"),
-            campus=data.get("campus", "Main")
+            campus=data.get("campus", "Main"),
+            prerequisites=data.get("prerequisites", []),
+            corequisites=data.get("corequisites", [])
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -73,7 +75,9 @@ class Course:
             "teacher": self.teacher,
             "faculty": self.faculty,
             "department": self.department,
-            "campus": self.campus
+            "campus": self.campus,
+            "prerequisites": self.prerequisites,
+            "corequisites": self.corequisites
         }
 
     def conflicts_with(self, other: 'Course') -> bool:

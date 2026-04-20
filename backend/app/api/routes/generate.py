@@ -1,5 +1,6 @@
 """Schedule generation endpoints with auto section selection."""
 
+import json
 import os
 import uuid
 import logging
@@ -12,6 +13,7 @@ from pydantic import BaseModel
 
 from app.core.excel_loader import process_excel
 from app.config import settings
+from app.models.database import GlobalCourse, SessionLocal
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -107,49 +109,38 @@ def generate_schedules_sync(
         logger.info(f"  {mc}: lectures={len(types['lecture'])}, labs={len(types['lab'])}, ps={len(types['ps'])}")
     
     def get_course_options(main_code: str) -> List[List[dict]]:
-        """Get all possible section combinations for a course."""
+        """Get all valid section combinations for a course.
+
+        Rules:
+        - A lecture's linked PS/lab must be selected together with it.
+        - If the lecture is not selected, none of its linked PS/labs may be selected.
+        - PS/lab sessions cannot be taken without a lecture.
+        - Sections match freely across types (any lecture with any PS/lab).
+        - If both lab and PS exist for a course, both are required.
+        """
         group = course_groups.get(main_code, {})
         lectures = group.get("lecture", [])
         labs = group.get("lab", [])
         ps_sections = group.get("ps", [])
-        
-        options = []
-        
-        # If no lectures, check for lab-only or PS-only
+
         if not lectures:
-            if labs:
-                for lab in labs:
-                    options.append([lab])
-            elif ps_sections:
-                for ps in ps_sections:
-                    options.append([ps])
-            return options
-        
-        # For each lecture section
+            return []
+
+        options = []
         for lecture in lectures:
             if not labs and not ps_sections:
                 options.append([lecture])
             elif labs and not ps_sections:
                 for lab in labs:
                     options.append([lecture, lab])
-                # Also allow lecture-only if lab sections don't fit
-                options.append([lecture])
             elif ps_sections and not labs:
                 for ps in ps_sections:
                     options.append([lecture, ps])
-                options.append([lecture])
             else:
-                # Both lab and ps exist
                 for lab in labs:
                     for ps in ps_sections:
                         options.append([lecture, lab, ps])
-                # Also try combinations without lab or ps
-                for lab in labs:
-                    options.append([lecture, lab])
-                for ps in ps_sections:
-                    options.append([lecture, ps])
-                options.append([lecture])
-        
+
         return options
     
     # Get options for each selected main course
@@ -218,8 +209,30 @@ def generate_schedules_sync(
     
     # Sort by score
     schedules.sort(key=lambda x: x["score"], reverse=True)
-    
+
     return schedules[:20]
+
+
+def load_courses_for_generation(file_id: str) -> List[dict]:
+    """Load courses from an uploaded file or the active global semester."""
+    if file_id == "global":
+        db = SessionLocal()
+        try:
+            active_semester = db.query(GlobalCourse).filter(GlobalCourse.is_active == True).first()
+            if not active_semester:
+                raise HTTPException(status_code=404, detail="No active semester found")
+            return json.loads(active_semester.courses_json)
+        finally:
+            db.close()
+
+    file_path = os.path.join(settings.UPLOAD_DIR, f"{file_id}.xlsx")
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+
+    try:
+        return process_excel(file_path)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Error parsing file: {exc}") from exc
 
 
 @router.post("/generate", response_model=JobResponse)
@@ -231,16 +244,8 @@ async def start_generation(request: GenerateRequest):
     if len(request.selected_main_codes) > 15:
         raise HTTPException(status_code=400, detail="Maximum 15 courses allowed")
     
-    # Load courses from file
-    file_path = os.path.join(settings.UPLOAD_DIR, f"{request.file_id}.xlsx")
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="File not found")
-    
-    try:
-        all_courses = process_excel(file_path)
-        logger.info(f"Loaded {len(all_courses)} courses from Excel")
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error parsing file: {e}")
+    all_courses = load_courses_for_generation(request.file_id)
+    logger.info(f"Loaded {len(all_courses)} courses for source {request.file_id}")
     
     job_id = str(uuid.uuid4())
     

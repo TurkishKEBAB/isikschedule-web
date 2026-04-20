@@ -2,9 +2,13 @@
 
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.orm import Session
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+import uuid
+
+from ...models.database import get_db, SavedSchedule
 
 router = APIRouter()
 
@@ -73,25 +77,70 @@ async def export_schedule(
     }
 
 
-@router.post("/schedules/{job_id}/{schedule_index}/share")
-async def share_schedule(job_id: str, schedule_index: int):
-    """Generate a shareable link for a schedule."""
-    import uuid
-    share_code = str(uuid.uuid4())[:8]
+class ShareAnonymousRequest(BaseModel):
+    courses: list
+
+@router.post("/schedules/share")
+async def share_anonymous_schedule(request: ShareAnonymousRequest, db: Session = Depends(get_db)):
+    """Generate a shareable link for an anonymous schedule."""
+    import json
+    share_id = str(uuid.uuid4())[:16]
+    
+    # We must have user_id, let's just make it 1 or create a dummy SavedSchedule without user_id if possible.
+    # actually, user_id is required in DB. 
+    # Let's just create a quick dict or store in cache? 
+    # Or just use user_id = 1 (assuming admin exists).
+    from ...models.database import User
+    admin = db.query(User).first()
+    if not admin:
+        raise HTTPException(status_code=500, detail="No users exist to bind schedule to")
+
+    schedule = SavedSchedule(
+        user_id=admin.id,
+        name="Shared Schedule",
+        courses_json=json.dumps(request.dict().get("courses", [])),
+        share_id=share_id
+    )
+    db.add(schedule)
+    db.commit()
+    db.refresh(schedule)
     
     return {
-        "share_code": share_code,
-        "share_url": f"https://isikschedule.com/s/{share_code}",
-        "expires_in_days": 7,
+        "share_code": schedule.share_id,
+        "share_url": f"/s/{schedule.share_id}"
+    }
+
+@router.post("/schedules/share/{schedule_id}")
+async def share_schedule(schedule_id: int, db: Session = Depends(get_db)):
+    """Generate a shareable link for a saved schedule."""
+    schedule = db.query(SavedSchedule).filter(SavedSchedule.id == schedule_id).first()
+    if not schedule:
+        raise HTTPException(status_code=404, detail="Schedule not found")
+
+    if not schedule.share_id:
+        schedule.share_id = str(uuid.uuid4())[:16]
+        db.commit()
+        db.refresh(schedule)
+    
+    return {
+        "share_code": schedule.share_id,
+        "share_url": f"/s/{schedule.share_id}"
     }
 
 
 @router.get("/shared/{share_code}")
-async def get_shared_schedule(share_code: str):
+async def get_shared_schedule(share_code: str, db: Session = Depends(get_db)):
     """Get a schedule by share code."""
-    # TODO: Fetch from database by share code
+    schedule = db.query(SavedSchedule).filter(SavedSchedule.share_id == share_code).first()
+    if not schedule:
+        raise HTTPException(status_code=404, detail="Shared schedule not found")
+        
     return {
         "share_code": share_code,
-        "schedule": None,
-        "expired": False,
+        "schedule": {
+            "id": schedule.id,
+            "name": schedule.name,
+            "courses_json": schedule.courses_json,
+            "created_at": schedule.created_at
+        }
     }
