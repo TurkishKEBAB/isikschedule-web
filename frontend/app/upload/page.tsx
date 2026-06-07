@@ -43,7 +43,7 @@ export default function UploadPage() {
         setIsDragging(false);
         const droppedFile = event.dataTransfer.files[0];
 
-        if (droppedFile && droppedFile.name.endsWith('.xlsx')) {
+        if (droppedFile && droppedFile.name.toLowerCase().endsWith('.xlsx')) {
             setFile(droppedFile);
             return;
         }
@@ -55,7 +55,7 @@ export default function UploadPage() {
         const selectedFile = event.target.files?.[0];
         if (!selectedFile) return;
 
-        if (!selectedFile.name.endsWith('.xlsx')) {
+        if (!selectedFile.name.toLowerCase().endsWith('.xlsx')) {
             toastError(t.uploadInvalidFile);
             event.target.value = '';
             return;

@@ -282,7 +282,7 @@ async function loadCourseSource(targetFileId: string, uploadLabel?: string | nul
             const data = await response.json();
             return {
                 fileId: 'global',
-                sourceLabel: data.semester ? `Global: ${data.semester}` : 'Global semester',
+                sourceLabel: typeof data.semester === 'string' && data.semester.trim() ? data.semester : null,
                 courses: data.courses || [],
             };
         }
@@ -293,7 +293,7 @@ async function loadCourseSource(targetFileId: string, uploadLabel?: string | nul
         const data = await response.json();
         return {
             fileId: targetFileId,
-            sourceLabel: uploadLabel || `Upload ${targetFileId.slice(0, 8)}`,
+            sourceLabel: uploadLabel || targetFileId.slice(0, 8),
             courses: data.courses || [],
         };
     } catch {
