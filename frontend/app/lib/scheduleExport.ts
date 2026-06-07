@@ -61,12 +61,12 @@ export function buildScheduleICS(
     const now = new Date();
     const weeks = options.weeks ?? 14;
     const seedDate = options.startDate ?? new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const termLabel = options.termLabel ?? 'IsikSchedule';
+    const termLabel = options.termLabel ?? 'IşıkSchedule';
 
     const lines: string[] = [
         'BEGIN:VCALENDAR',
         'VERSION:2.0',
-        'PRODID:-//IsikSchedule//Course Export//TR',
+        'PRODID:-//IşıkSchedule//Course Export//TR',
         'CALSCALE:GREGORIAN',
         `X-WR-CALNAME:${escapeICSValue(termLabel)}`,
     ];

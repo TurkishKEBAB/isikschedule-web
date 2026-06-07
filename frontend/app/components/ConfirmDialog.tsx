@@ -47,10 +47,10 @@ export default function ConfirmDialog({
                 </div>
                 {children}
                 <div className="flex items-center justify-end gap-2 pt-2">
-                    <button onClick={onCancel} className="btn-ghost !text-xs">
+                    <button type="button" onClick={onCancel} className="btn-ghost !text-xs">
                         {cancelLabel}
                     </button>
-                    <button onClick={onConfirm} className={`${confirmClass} !text-xs`}>
+                    <button type="button" onClick={onConfirm} className={`${confirmClass} !text-xs`}>
                         {confirmLabel}
                     </button>
                 </div>

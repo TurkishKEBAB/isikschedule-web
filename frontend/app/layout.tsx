@@ -7,8 +7,11 @@ const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
     title: 'IşıkSchedule — Ders Programı Oluşturucu',
-    description: 'Işık Üniversitesi öğrencileri için akıllı ders programı oluşturucu',
+    description: 'Işık Üniversitesi öğrencileri için ders programı planlayıcı',
     keywords: ['schedule', 'university', 'course', 'işık', 'timetable'],
+    icons: {
+        icon: '/icon.svg',
+    },
 };
 
 export default function RootLayout({
