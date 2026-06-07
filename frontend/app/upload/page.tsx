@@ -6,8 +6,10 @@ import { Upload, FileCheck, Loader2, X, ArrowRight, FileSpreadsheet } from 'luci
 import Navbar from '../components/Navbar';
 import { useToast } from '../components/Toast';
 import { API_BASE_URL } from '../lib/api';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function UploadPage() {
+    const { t } = useLanguage();
     const { toastError } = useToast();
     const [file, setFile] = useState<File | null>(null);
     const [isDragging, setIsDragging] = useState(false);
@@ -41,18 +43,26 @@ export default function UploadPage() {
         setIsDragging(false);
         const droppedFile = event.dataTransfer.files[0];
 
-        if (droppedFile && (droppedFile.name.endsWith('.xlsx') || droppedFile.name.endsWith('.xls'))) {
+        if (droppedFile && droppedFile.name.endsWith('.xlsx')) {
             setFile(droppedFile);
             return;
         }
 
-        toastError('Lutfen bir Excel dosyasi (.xlsx veya .xls) yukleyin.');
-    }, [toastError]);
+        toastError(t.uploadInvalidFile);
+    }, [t.uploadInvalidFile, toastError]);
 
     const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFile = event.target.files?.[0];
-        if (selectedFile) setFile(selectedFile);
-    }, []);
+        if (!selectedFile) return;
+
+        if (!selectedFile.name.endsWith('.xlsx')) {
+            toastError(t.uploadInvalidFile);
+            event.target.value = '';
+            return;
+        }
+
+        setFile(selectedFile);
+    }, [t.uploadInvalidFile, toastError]);
 
     const handleUpload = async () => {
         if (!file) return;
@@ -64,13 +74,13 @@ export default function UploadPage() {
             formData.append('file', file);
 
             const response = await fetch(`${API_BASE_URL}/api/upload`, { method: 'POST', body: formData });
-            if (!response.ok) throw new Error('Yukleme basarisiz.');
+            if (!response.ok) throw new Error(t.uploadFailed);
 
             const result = await response.json();
             setUploadResult(result);
             setIsRedirecting(true);
         } catch {
-            toastError('Dosya yuklenirken bir hata olustu. Backend calisiyor mu?');
+            toastError(t.uploadFailed);
             setIsRedirecting(false);
         } finally {
             setIsUploading(false);
@@ -83,11 +93,11 @@ export default function UploadPage() {
 
             <div className="max-w-2xl mx-auto py-16 px-6">
                 <div className="text-center mb-10">
-                    <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-isik-blue/20 to-purple-500/20 border border-white/5 mb-4">
+                    <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-isik-blue/20 border border-isik-blue-lighter/20 mb-4">
                         <Upload className="w-7 h-7 text-isik-blue-lighter" />
                     </div>
-                    <h1 className="text-2xl font-bold text-white mb-2">Ders programi yukle</h1>
-                    <p className="text-sm text-slate-500">Excel dosyanizi surukleyip birakin veya secin.</p>
+                    <h1 className="text-2xl font-bold text-white mb-2">{t.uploadTitle}</h1>
+                    <p className="text-sm text-slate-400">{t.uploadSubtitle}</p>
                 </div>
 
                 <div
@@ -102,30 +112,30 @@ export default function UploadPage() {
                         <div>
                             <FileCheck className="w-12 h-12 text-emerald-400 mx-auto mb-3" />
                             <p className="text-base font-medium text-white">{file.name}</p>
-                            <p className="text-xs text-slate-500 mt-1">{(file.size / 1024).toFixed(1)} KB</p>
-                            <button onClick={() => setFile(null)} className="mt-3 text-red-400 hover:text-red-300 text-sm flex items-center gap-1 mx-auto transition-colors">
-                                <X className="w-3.5 h-3.5" /> Dosyayi kaldir
+                            <p className="text-xs text-slate-400 mt-1">{(file.size / 1024).toFixed(1)} KB</p>
+                            <button type="button" onClick={() => setFile(null)} className="mt-3 text-red-400 hover:text-red-300 text-sm flex items-center gap-1 mx-auto transition-colors">
+                                <X className="w-3.5 h-3.5" /> {t.uploadRemoveFile}
                             </button>
                         </div>
                     ) : (
                         <div>
-                            <FileSpreadsheet className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-                            <p className="text-base font-medium text-slate-300 mb-1">Excel dosyanizi buraya surukleyin</p>
-                            <p className="text-xs text-slate-600 mb-4">veya</p>
+                            <FileSpreadsheet className="w-12 h-12 text-slate-400 mx-auto mb-3" />
+                            <p className="text-base font-medium text-slate-300 mb-1">{t.uploadDropTitle}</p>
+                            <p className="text-xs text-slate-400 mb-4">{t.uploadDropOr}</p>
                             <label className="cursor-pointer">
-                                <span className="btn-primary">Dosya sec</span>
-                                <input type="file" accept=".xlsx,.xls" onChange={handleFileSelect} className="hidden" />
+                                <span className="btn-primary">{t.selectFile}</span>
+                                <input type="file" accept=".xlsx" onChange={handleFileSelect} className="hidden" />
                             </label>
                         </div>
                     )}
                 </div>
 
                 {file && !uploadResult && (
-                    <button onClick={handleUpload} disabled={isUploading} className="btn-primary w-full !py-3.5 mt-6 !text-base">
+                    <button type="button" onClick={handleUpload} disabled={isUploading} className="btn-primary w-full !py-3.5 mt-6 !text-base">
                         {isUploading ? (
-                            <><Loader2 className="w-5 h-5 animate-spin" />Yukleniyor...</>
+                            <><Loader2 className="w-5 h-5 animate-spin" />{t.uploading}</>
                         ) : (
-                            <>Yukle ve scheduler'a gec <ArrowRight className="w-5 h-5" /></>
+                            <>{t.uploadSubmit} <ArrowRight className="w-5 h-5" /></>
                         )}
                     </button>
                 )}
@@ -134,29 +144,29 @@ export default function UploadPage() {
                     <div className="glass-panel p-6 mt-8">
                         <div className="flex items-center gap-3 mb-4">
                             <FileCheck className="w-6 h-6 text-emerald-400" />
-                            <h2 className="text-lg font-semibold text-white">Yukleme basarili</h2>
+                            <h2 className="text-lg font-semibold text-white">{t.uploadSuccessTitle}</h2>
                         </div>
                         <div className="grid grid-cols-2 gap-3 mb-5">
                             <div className="bg-surface-700/30 rounded-xl p-3">
-                                <p className="text-[11px] text-slate-500 uppercase tracking-wider">Dosya</p>
+                                <p className="text-[11px] text-slate-400 uppercase tracking-wider">{t.uploadFileLabel}</p>
                                 <p className="text-sm font-medium text-white mt-1 truncate">{uploadResult.filename}</p>
                             </div>
                             <div className="bg-surface-700/30 rounded-xl p-3">
-                                <p className="text-[11px] text-slate-500 uppercase tracking-wider">Ders sayisi</p>
+                                <p className="text-[11px] text-slate-400 uppercase tracking-wider">{t.uploadCourseCountLabel}</p>
                                 <p className="text-sm font-medium text-white mt-1">{uploadResult.course_count}</p>
                             </div>
                         </div>
                         {isRedirecting && (
                             <div className="flex items-center justify-center gap-2 text-sm text-isik-blue-lighter mb-4">
                                 <Loader2 className="w-4 h-4 animate-spin" />
-                                <span>Scheduler'a yonlendiriliyor...</span>
+                                <span>{t.uploadRedirecting}</span>
                             </div>
                         )}
                         <Link
                             href={`/scheduler?file_id=${uploadResult.file_id}&source=${encodeURIComponent(uploadResult.filename)}`}
                             className="btn-primary w-full !py-3"
                         >
-                            Scheduler'a gec <ArrowRight className="w-4 h-4" />
+                            {t.uploadContinueToScheduler} <ArrowRight className="w-4 h-4" />
                         </Link>
                     </div>
                 )}

@@ -3,12 +3,16 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { GraduationCap, Mail, Lock, ArrowRight, Loader2 } from 'lucide-react';
+import { GraduationCap, Mail, Lock, ArrowRight, Loader2, Eye, EyeOff } from 'lucide-react';
+import { API_BASE_URL } from '../lib/api';
+import { LanguageSwitcher, useLanguage } from '../context/LanguageContext';
 
 export default function LoginPage() {
     const router = useRouter();
+    const { t } = useLanguage();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isChecking, setIsChecking] = useState(true);
@@ -23,13 +27,13 @@ export default function LoginPage() {
         }
     }, [router]);
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleSubmit = async (event: React.FormEvent) => {
+        event.preventDefault();
         setError('');
         setIsLoading(true);
 
         try {
-            const response = await fetch('http://localhost:8000/api/auth/login', {
+            const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password }),
@@ -37,7 +41,7 @@ export default function LoginPage() {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.detail || 'Giriş başarısız');
+                throw new Error(errorData.detail || t.loginFailed);
             }
 
             const data = await response.json();
@@ -45,7 +49,7 @@ export default function LoginPage() {
             localStorage.setItem('user', JSON.stringify(data.user));
             router.replace(data.user.role === 'admin' ? '/admin' : '/scheduler');
         } catch (err: any) {
-            setError(err.message || 'Giriş başarısız');
+            setError(err.message || t.loginFailed);
             setIsLoading(false);
         }
     };
@@ -60,24 +64,21 @@ export default function LoginPage() {
 
     return (
         <div className="min-h-screen bg-surface-900 flex items-center justify-center p-4 relative overflow-hidden">
-            {/* Background effects */}
-            <div className="absolute inset-0 pointer-events-none">
-                <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-gradient-to-b from-isik-blue/15 to-transparent rounded-full blur-3xl" />
+            <div className="absolute right-4 top-4 z-10">
+                <LanguageSwitcher />
             </div>
 
             <div className="relative w-full max-w-sm">
-                {/* Logo */}
                 <div className="text-center mb-8">
                     <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-isik-blue to-isik-blue-lighter shadow-xl shadow-blue-500/20 mb-4">
                         <GraduationCap className="w-7 h-7 text-white" />
                     </div>
                     <h1 className="text-2xl font-bold text-white">IşıkSchedule</h1>
-                    <p className="text-sm text-slate-500 mt-1">Ders Programı Oluşturucu</p>
+                    <p className="text-sm text-slate-400 mt-1">{t.loginProductSubtitle}</p>
                 </div>
 
-                {/* Form */}
                 <div className="glass-panel p-6">
-                    <h2 className="text-lg font-semibold text-white text-center mb-6">Giriş Yap</h2>
+                    <h2 className="text-lg font-semibold text-white text-center mb-6">{t.loginTitle}</h2>
 
                     {error && (
                         <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm mb-5">
@@ -88,13 +89,16 @@ export default function LoginPage() {
 
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div>
-                            <label className="text-[11px] font-medium uppercase tracking-wider text-slate-500 block mb-1.5">E-posta</label>
+                            <label htmlFor="login-email" className="text-[11px] font-medium uppercase tracking-wider text-slate-400 block mb-1.5">{t.loginEmailLabel}</label>
                             <div className="relative">
                                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                                 <input
+                                    id="login-email"
+                                    name="email"
                                     type="email"
+                                    autoComplete="email"
                                     value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
+                                    onChange={(event) => setEmail(event.target.value)}
                                     placeholder="ornek@isik.edu.tr"
                                     className="input-field !pl-10"
                                     required
@@ -104,18 +108,30 @@ export default function LoginPage() {
                         </div>
 
                         <div>
-                            <label className="text-[11px] font-medium uppercase tracking-wider text-slate-500 block mb-1.5">Şifre</label>
+                            <label htmlFor="login-password" className="text-[11px] font-medium uppercase tracking-wider text-slate-400 block mb-1.5">{t.loginPasswordLabel}</label>
                             <div className="relative">
                                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                                 <input
-                                    type="password"
+                                    id="login-password"
+                                    name="password"
+                                    type={showPassword ? 'text' : 'password'}
+                                    autoComplete="current-password"
                                     value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
+                                    onChange={(event) => setPassword(event.target.value)}
                                     placeholder="••••••••"
-                                    className="input-field !pl-10"
+                                    className="input-field !pl-10 !pr-10"
                                     required
                                     suppressHydrationWarning
                                 />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword((prev) => !prev)}
+                                    aria-label={showPassword ? t.hidePassword : t.showPassword}
+                                    title={showPassword ? t.hidePassword : t.showPassword}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+                                >
+                                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
                             </div>
                         </div>
 
@@ -125,23 +141,23 @@ export default function LoginPage() {
                             className="btn-primary w-full !py-3"
                         >
                             {isLoading ? (
-                                <><Loader2 className="w-4 h-4 animate-spin" />Giriş yapılıyor...</>
+                                <><Loader2 className="w-4 h-4 animate-spin" />{t.loginSubmitting}</>
                             ) : (
-                                <>Giriş Yap <ArrowRight className="w-4 h-4" /></>
+                                <>{t.loginSubmit} <ArrowRight className="w-4 h-4" /></>
                             )}
                         </button>
                     </form>
 
-                    <div className="mt-5 text-center text-sm text-slate-500">
-                        Hesabınız yok mu?{' '}
+                    <div className="mt-5 text-center text-sm text-slate-400">
+                        {t.loginNoAccount}{' '}
                         <Link href="/register" className="text-isik-blue-lighter hover:text-blue-300 transition-colors font-medium">
-                            Kayıt Ol
+                            {t.loginRegisterLink}
                         </Link>
                     </div>
                 </div>
 
-                <p className="text-center text-xs text-slate-600 mt-6">
-                    Sadece @isik.edu.tr ve @isikun.edu.tr e-postaları kabul edilir
+                <p className="text-center text-xs text-slate-400 mt-6">
+                    {t.loginDomainNote}
                 </p>
             </div>
         </div>
