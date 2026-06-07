@@ -1,437 +1,496 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 
 export type Language = 'tr' | 'en';
 
-interface Translations {
-    // Header
-    changeFile: string;
-    settings: string;
-    courses: string;
-    ects: string;
-    createSchedule: string;
-    creating: string;
-
-    // Sidebar
-    searchCourse: string;
-    coursesSelected: string;
-    noFileUploaded: string;
-    uploadFile: string;
-    allSectionsLocked: string;
-
-    // Grid
-    weeklySchedule: string;
-    program: string;
-    time: string;
-
-    // Days
-    mon: string;
-    tue: string;
-    wed: string;
-    thu: string;
-    fri: string;
-
-    // Upload Modal
-    uploadTitle: string;
-    uploadSubtitle: string;
-    uploading: string;
-    selectFile: string;
-    continue: string;
-
-    // Settings Panel
-    settingsTitle: string;
-    algorithm: string;
-    dfs: string;
-    genetic: string;
-    astar: string;
-    maxEcts: string;
-    conflictTolerance: string;
-
-    // Course Modal
-    lecture: string;
-    lab: string;
-    problemSession: string;
-    teacher: string;
-    schedule: string;
-    switchSection: string;
-    removeCourse: string;
-
-    // Alerts
-    pleaseSelectCourse: string;
-    courseCannotBeAdded: string;
-    allSectionsConflict: string;
-    solutionRemoveLocks: string;
-    sectionConflictsWithLock: string;
-    locked: string;
-    sectionChanged: string;
-    removedNoAlternative: string;
-    toReaddRemoveLocks: string;
-    backendConflict: string;
-    generationFailed: string;
-    unknownError: string;
-
-    // Lock
-    unlock: string;
-    lock: string;
-
-    // UX additions
-    loadingCourses: string;
-    activeSource: string;
-    allCoursesLabel: string;
-    selectedOnly: string;
-    blockedOnly: string;
-    codeGroup: string;
-    allCodeGroups: string;
-    academicUnit: string;
-    allAcademicUnits: string;
-    noSearchResults: string;
-    resetFilters: string;
-    clearLocks: string;
-    clearSelection: string;
-    quickTips: string;
-    tipSelectCourses: string;
-    tipLockSlots: string;
-    tipCreateAlternatives: string;
-    manualDraft: string;
-    generatedOptions: string;
-    pickCoursesHint: string;
-    restoredSession: string;
-    selectionReset: string;
-    locksReset: string;
-    selectionMayConflict: string;
-    unavailableCoursesSkipped: string;
-    prerequisiteWarning: string;
-    corequisiteWarning: string;
-    missingPreCoWarning: string;
-
-    // Phase 2 UX additions
-    undo: string;
-    redo: string;
-    nothingToUndo: string;
-    nothingToRedo: string;
-    undone: string;
-    redone: string;
-    exportMenu: string;
-    exportIcal: string;
-    exportPrint: string;
-    exportIcalDone: string;
-    exportNothingToExport: string;
-    instructor: string;
-    allInstructors: string;
-    clearSearch: string;
-    stats: string;
-    statsFreeDays: string;
-    statsFreeDay: string;
-    statsBusyDays: string;
-    statsTotalHours: string;
-    statsGaps: string;
-    statsFirstClass: string;
-    statsLastClass: string;
-    statsNoClass: string;
-    confirmClearSelectionTitle: string;
-    confirmClearSelectionMessage: string;
-    confirmClearLocksTitle: string;
-    confirmClearLocksMessage: string;
-    confirmYes: string;
-    confirmCancel: string;
-    keyboardShortcuts: string;
-    shortcutUndo: string;
-    shortcutRedo: string;
-    shortcutPrevSchedule: string;
-    shortcutNextSchedule: string;
-    shortcutGenerate: string;
-    shortcutToggleHelp: string;
-    shortcutCloseModal: string;
-    shortcutFocusSearch: string;
-    shortcutExport: string;
-}
-
-const translations: Record<Language, Translations> = {
-    tr: {
-        // Header
-        changeFile: 'Dosya degistir',
-        settings: 'Ayarlar',
-        courses: 'ders',
-        ects: 'ECTS',
-        createSchedule: 'Program olustur',
-        creating: 'Olusturuluyor...',
-
-        // Sidebar
-        searchCourse: 'Ders ara...',
-        coursesSelected: 'ders secildi',
-        noFileUploaded: 'Henuz dosya yuklenmedi',
-        uploadFile: 'Dosya yukle',
-        allSectionsLocked: 'Tum sectionlar kilitli',
-
-        // Grid
-        weeklySchedule: 'Haftalik program',
-        program: 'Program',
-        time: 'Saat',
-
-        // Days
-        mon: 'Pzt',
-        tue: 'Sal',
-        wed: 'Car',
-        thu: 'Per',
-        fri: 'Cum',
-
-        // Upload Modal
-        uploadTitle: 'Ders programini yukle',
-        uploadSubtitle: 'Excel dosyasini surukle veya sec',
-        uploading: 'Yukleniyor...',
-        selectFile: 'Dosya sec',
-        continue: 'Devam et',
-
-        // Settings Panel
-        settingsTitle: 'Ayarlar',
-        algorithm: 'Algoritma',
-        dfs: 'DFS (Hizli)',
-        genetic: 'Genetik',
-        astar: 'A*',
-        maxEcts: 'Max ECTS',
-        conflictTolerance: 'Cakisma toleransi',
-
-        // Course Modal
-        lecture: 'Ders',
-        lab: 'Lab',
-        problemSession: 'PS',
-        teacher: 'Hoca',
-        schedule: 'Saatler',
-        switchSection: 'Section degistir',
-        removeCourse: 'Dersi kaldir',
-
-        // Alerts
-        pleaseSelectCourse: 'Lutfen once ders secin.',
-        courseCannotBeAdded: 'eklenemiyor.',
-        allSectionsConflict: 'Tum sectionlar kilitli saatlerle cakisiyor.',
-        solutionRemoveLocks: 'Cozum: Bazi kilitleri kaldirin veya farkli bir ders secin.',
-        sectionConflictsWithLock: 'Bu section kilitli saatlerle cakisiyor.',
-        locked: 'kilitlendi',
-        sectionChanged: 'Section degistirildi',
-        removedNoAlternative: 'Alternatif bulunamadigi icin kaldirildi',
-        toReaddRemoveLocks: 'Bu dersleri tekrar eklemek icin kilitleri kaldirin',
-        backendConflict: 'Olusturulan programlar kilitlerle cakisiyor. Mevcut secim kullaniliyor.',
-        generationFailed: 'Olusturma basarisiz',
-        unknownError: 'Bilinmeyen hata',
-
-        // Lock
-        unlock: 'Kilidi kaldir',
-        lock: 'Kilitle',
-
-        // UX additions
-        loadingCourses: 'Ders verileri yukleniyor...',
-        activeSource: 'Kaynak',
-        allCoursesLabel: 'Tumu',
-        selectedOnly: 'Secili',
-        blockedOnly: 'Kilitli',
-        codeGroup: 'Kod grubu',
-        allCodeGroups: 'Tum kod gruplari',
-        academicUnit: 'Akademik birim',
-        allAcademicUnits: 'Tum akademik birimler',
-        noSearchResults: 'Aramana uyan ders bulunamadi.',
-        resetFilters: 'Filtreleri sifirla',
-        clearLocks: 'Kilitleri temizle',
-        clearSelection: 'Secimi temizle',
-        quickTips: 'Hizli ipuclari',
-        tipSelectCourses: 'Soldan ders ekleyip cikararak taslak programini olustur.',
-        tipLockSlots: 'Tablodaki kilit ikonuyla istemedigin saatleri kapat.',
-        tipCreateAlternatives: 'Hazir oldugunda program olusturup alternatifleri gez.',
-        manualDraft: 'Manuel taslak gorunumu',
-        generatedOptions: 'olusturulan alternatif',
-        pickCoursesHint: 'Baslamak icin soldan ders sec.',
-        restoredSession: 'Son calisma durumun geri yuklendi.',
-        selectionReset: 'Secili dersler temizlendi.',
-        locksReset: 'Tum kilitler kaldirildi.',
-        selectionMayConflict: 'Secilen section mevcut programla cakisabilir.',
-        unavailableCoursesSkipped: 'Bazi eski secimler yeni veri kaynaginda bulunamadi.',
-        prerequisiteWarning: 'Secilen dersin bazi onkosullari programinda eksik:',
-        corequisiteWarning: 'Secilen dersin bazi eskosullari programinda bulumuyor:',
-        missingPreCoWarning: 'Eksik Onkosul/Eskosul Uyarilari',
-
-        // Phase 2 UX additions
-        undo: 'Geri al',
-        redo: 'Yinele',
-        nothingToUndo: 'Geri alinacak islem yok.',
-        nothingToRedo: 'Yinelenecek islem yok.',
-        undone: 'Son islem geri alindi.',
-        redone: 'Islem yinelendi.',
-        exportMenu: 'Disa aktar',
-        exportIcal: 'Takvime aktar (.ics)',
-        exportPrint: 'Yazdir / PDF',
-        exportIcalDone: 'Takvim dosyasi hazir.',
-        exportNothingToExport: 'Disa aktarilacak ders yok.',
-        instructor: 'Ogretim uyesi',
-        allInstructors: 'Tum ogretim uyeleri',
-        clearSearch: 'Aramayi temizle',
-        stats: 'Istatistikler',
-        statsFreeDays: 'Bos gunler',
-        statsFreeDay: 'Bos gun',
-        statsBusyDays: 'Dolu gunler',
-        statsTotalHours: 'Toplam ders saati',
-        statsGaps: 'Ara saat',
-        statsFirstClass: 'Ilk ders',
-        statsLastClass: 'Son ders',
-        statsNoClass: 'Ders yok',
-        confirmClearSelectionTitle: 'Tum secimleri temizle?',
-        confirmClearSelectionMessage: 'Secili tum dersler programindan kaldirilacak.',
-        confirmClearLocksTitle: 'Tum kilitleri kaldir?',
-        confirmClearLocksMessage: 'Isaretli saat kilitlerinin hepsi silinecek.',
-        confirmYes: 'Evet, devam et',
-        confirmCancel: 'Vazgec',
-        keyboardShortcuts: 'Klavye kisayollari',
-        shortcutUndo: 'Son islemi geri al',
-        shortcutRedo: 'Islemi yinele',
-        shortcutPrevSchedule: 'Onceki program',
-        shortcutNextSchedule: 'Sonraki program',
-        shortcutGenerate: 'Program olustur',
-        shortcutToggleHelp: 'Bu pencereyi ac/kapat',
-        shortcutCloseModal: 'Acik pencereyi kapat',
-        shortcutFocusSearch: 'Aramaya odaklan',
-        shortcutExport: 'Disa aktarma menusu',
-    },
-    en: {
-        // Header
-        changeFile: 'Change file',
-        settings: 'Settings',
-        courses: 'courses',
-        ects: 'ECTS',
-        createSchedule: 'Generate schedule',
-        creating: 'Creating...',
-
-        // Sidebar
-        searchCourse: 'Search course...',
-        coursesSelected: 'courses selected',
-        noFileUploaded: 'No file uploaded yet',
-        uploadFile: 'Upload file',
-        allSectionsLocked: 'All sections locked',
-
-        // Grid
-        weeklySchedule: 'Weekly schedule',
-        program: 'Schedule',
-        time: 'Time',
-
-        // Days
-        mon: 'Mon',
-        tue: 'Tue',
-        wed: 'Wed',
-        thu: 'Thu',
-        fri: 'Fri',
-
-        // Upload Modal
-        uploadTitle: 'Upload course schedule',
-        uploadSubtitle: 'Drag and drop or select an Excel file',
-        uploading: 'Uploading...',
-        selectFile: 'Select file',
-        continue: 'Continue',
-
-        // Settings Panel
-        settingsTitle: 'Settings',
-        algorithm: 'Algorithm',
-        dfs: 'DFS (Fast)',
-        genetic: 'Genetic',
-        astar: 'A*',
-        maxEcts: 'Max ECTS',
-        conflictTolerance: 'Conflict tolerance',
-
-        // Course Modal
-        lecture: 'Lecture',
-        lab: 'Lab',
-        problemSession: 'PS',
-        teacher: 'Instructor',
-        schedule: 'Schedule',
-        switchSection: 'Switch section',
-        removeCourse: 'Remove course',
-
-        // Alerts
-        pleaseSelectCourse: 'Please select a course first.',
-        courseCannotBeAdded: 'cannot be added.',
-        allSectionsConflict: 'All sections conflict with locked slots.',
-        solutionRemoveLocks: 'Remove some locks or choose a different course.',
-        sectionConflictsWithLock: 'This section conflicts with locked slots.',
-        locked: 'locked',
-        sectionChanged: 'Section changed',
-        removedNoAlternative: 'Removed because no alternative was found',
-        toReaddRemoveLocks: 'Remove locks to add these courses back',
-        backendConflict: 'Generated schedules conflict with locked slots. Keeping your current selection.',
-        generationFailed: 'Generation failed',
-        unknownError: 'Unknown error',
-
-        // Lock
-        unlock: 'Unlock',
-        lock: 'Lock',
-
-        // UX additions
-        loadingCourses: 'Loading course data...',
-        activeSource: 'Source',
-        allCoursesLabel: 'All',
-        selectedOnly: 'Selected',
-        blockedOnly: 'Blocked',
-        codeGroup: 'Code group',
-        allCodeGroups: 'All code groups',
-        academicUnit: 'Academic unit',
-        allAcademicUnits: 'All academic units',
-        noSearchResults: 'No courses match your search.',
-        resetFilters: 'Reset filters',
-        clearLocks: 'Clear locks',
-        clearSelection: 'Clear selection',
-        quickTips: 'Quick tips',
-        tipSelectCourses: 'Build a draft schedule by adding and removing courses from the left.',
-        tipLockSlots: 'Use the lock icon inside the table to block unwanted hours.',
-        tipCreateAlternatives: 'When ready, generate schedules and browse the alternatives.',
-        manualDraft: 'Manual draft view',
-        generatedOptions: 'generated options',
-        pickCoursesHint: 'Pick courses from the left to get started.',
-        restoredSession: 'Your last workspace was restored.',
-        selectionReset: 'Selected courses were cleared.',
-        locksReset: 'All locks were cleared.',
-        selectionMayConflict: 'The selected section may still conflict with your current draft.',
-        unavailableCoursesSkipped: 'Some saved selections were not available in the new data source.',
-        prerequisiteWarning: 'Missing prerequisites for selected course:',
-        corequisiteWarning: 'Missing corequisites for selected course:',
-        missingPreCoWarning: 'Missing Prerequisites/Corequisites',
-        // Phase 2 UX additions
-        undo: 'Undo',
-        redo: 'Redo',
-        nothingToUndo: 'Nothing to undo.',
-        nothingToRedo: 'Nothing to redo.',
-        undone: 'Reverted the last change.',
-        redone: 'Reapplied the change.',
-        exportMenu: 'Export',
-        exportIcal: 'Download calendar (.ics)',
-        exportPrint: 'Print / Save as PDF',
-        exportIcalDone: 'Calendar file ready.',
-        exportNothingToExport: 'No courses to export yet.',
-        instructor: 'Instructor',
-        allInstructors: 'All instructors',
-        clearSearch: 'Clear search',
-        stats: 'Statistics',
-        statsFreeDays: 'Free days',
-        statsFreeDay: 'Free day',
-        statsBusyDays: 'Busy days',
-        statsTotalHours: 'Class hours',
-        statsGaps: 'Idle hours',
-        statsFirstClass: 'First class',
-        statsLastClass: 'Last class',
-        statsNoClass: 'No classes',
-        confirmClearSelectionTitle: 'Clear every course?',
-        confirmClearSelectionMessage: 'All selected courses will be removed from your draft.',
-        confirmClearLocksTitle: 'Remove every lock?',
-        confirmClearLocksMessage: 'All locked slots will be unlocked.',
-        confirmYes: 'Yes, continue',
-        confirmCancel: 'Cancel',
-        keyboardShortcuts: 'Keyboard shortcuts',
-        shortcutUndo: 'Undo the last change',
-        shortcutRedo: 'Redo the last change',
-        shortcutPrevSchedule: 'Previous schedule',
-        shortcutNextSchedule: 'Next schedule',
-        shortcutGenerate: 'Generate schedule',
-        shortcutToggleHelp: 'Open or close this panel',
-        shortcutCloseModal: 'Close the open dialog',
-        shortcutFocusSearch: 'Focus the course search',
-        shortcutExport: 'Open export menu',
-    },
+const tr = {
+    changeFile: 'Dosya değiştir',
+    settings: 'Ayarlar',
+    courses: 'ders',
+    ects: 'ECTS',
+    createSchedule: 'Program oluştur',
+    creating: 'Oluşturuluyor...',
+    searchCourse: 'Ders ara...',
+    coursesSelected: 'ders seçildi',
+    noFileUploaded: 'Henüz dosya yüklenmedi',
+    uploadFile: 'Dosya yükle',
+    allSectionsLocked: 'Tüm sectionlar kilitli',
+    weeklySchedule: 'Haftalık program',
+    program: 'Program',
+    time: 'Saat',
+    mon: 'Pzt',
+    tue: 'Sal',
+    wed: 'Çar',
+    thu: 'Per',
+    fri: 'Cum',
+    uploadTitle: 'Ders programını yükle',
+    uploadSubtitle: 'Yalnızca .xlsx uzantılı Excel dosyasını sürükle veya seç',
+    uploading: 'Yükleniyor...',
+    selectFile: 'Dosya seç',
+    continue: 'Devam et',
+    uploadInvalidFile: 'Lütfen yalnızca .xlsx uzantılı Excel dosyası yükleyin.',
+    uploadFailed: 'Dosya yüklenirken bir hata oluştu. Backend çalışıyor mu?',
+    uploadDropTitle: 'Excel dosyanızı buraya sürükleyin',
+    uploadDropOr: 'veya',
+    uploadRemoveFile: 'Dosyayı kaldır',
+    uploadSubmit: "Yükle ve scheduler'a geç",
+    uploadSuccessTitle: 'Yükleme başarılı',
+    uploadFileLabel: 'Dosya',
+    uploadCourseCountLabel: 'Ders sayısı',
+    uploadRedirecting: "Scheduler'a yönlendiriliyor...",
+    uploadContinueToScheduler: "Scheduler'a geç",
+    homeLogin: 'Giriş',
+    homeStart: 'Başla',
+    homeBadge: 'Işık Üniversitesi öğrencileri için tasarlandı',
+    homeTitleLine1: 'Ders Programını',
+    homeTitleLine2: 'Saniyeler İçinde Oluştur',
+    homeDescription: 'Derslerini seç, tercihlerini belirle; çakışmaları azaltan planlayıcı senin için uygun program seçenekleri oluştursun.',
+    homePrimaryCta: 'Hemen Başla',
+    homeSecondaryCta: 'Excel Yükle',
+    homeFeaturesEyebrow: 'Özellikler',
+    homeFeaturesTitle: 'Neden IşıkSchedule?',
+    homeFeatureFastTitle: 'Hızlı Program Üretimi',
+    homeFeatureFastDescription: 'Ders seçeneklerini saniyeler içinde tarayıp kullanılabilir program kombinasyonlarını çıkar.',
+    homeFeatureOptimizeTitle: 'Esnek Tercihler',
+    homeFeatureOptimizeDescription: 'Boş gün, sabah dersi, ECTS limiti ve çakışma toleransı gibi tercihleri yönet.',
+    homeFeatureExportTitle: 'Kolay Dışa Aktarım',
+    homeFeatureExportDescription: 'Programını iCal olarak indir, PDF için yazdır veya paylaşılabilir link oluştur.',
+    homeStepsEyebrow: 'Adımlar',
+    homeStepsTitle: 'Nasıl Çalışır?',
+    homeStepUploadTitle: 'Yükle',
+    homeStepUploadDescription: 'Excel formatındaki ders listesini yükle veya aktif global dönemi kullan.',
+    homeStepSelectTitle: 'Seç',
+    homeStepSelectDescription: 'Almak istediğin dersleri ve kişisel tercihlerini belirle.',
+    homeStepGenerateTitle: 'Oluştur',
+    homeStepGenerateDescription: 'Planlayıcı uygun section kombinasyonlarını otomatik olarak oluştursun.',
+    homeFooterText: 'Işık Üniversitesi öğrencileri için geliştirilmiş bağımsız bir öğrenci projesidir.',
+    loginProductSubtitle: 'Ders Programı Oluşturucu',
+    loginTitle: 'Giriş Yap',
+    loginEmailLabel: 'E-posta',
+    loginPasswordLabel: 'Şifre',
+    loginSubmit: 'Giriş Yap',
+    loginSubmitting: 'Giriş yapılıyor...',
+    loginNoAccount: 'Hesabınız yok mu?',
+    loginRegisterLink: 'Kayıt Ol',
+    loginDomainNote: 'Sadece @isik.edu.tr ve @isikun.edu.tr e-postaları kabul edilir',
+    loginFailed: 'Giriş başarısız',
+    showPassword: 'Şifreyi göster',
+    hidePassword: 'Şifreyi gizle',
+    registerProductSubtitle: 'Hesap Oluştur',
+    registerTitle: 'Kayıt Ol',
+    registerEmailLabel: 'E-posta',
+    registerEmailHint: '@isik.edu.tr veya @isikun.edu.tr',
+    registerPasswordLabel: 'Şifre',
+    registerConfirmLabel: 'Şifre Tekrar',
+    registerSubmit: 'Kayıt Ol',
+    registerSubmitting: 'Kayıt yapılıyor...',
+    registerHaveAccount: 'Zaten hesabınız var mı?',
+    registerLoginLink: 'Giriş Yap',
+    registerPasswordMismatch: 'Şifreler eşleşmiyor',
+    registerPasswordTooShort: 'Şifre en az 6 karakter olmalı',
+    registerInvalidDomain: 'E-posta @isik.edu.tr veya @isikun.edu.tr olmalı',
+    registerFailed: 'Kayıt başarısız',
+    settingsTitle: 'Ayarlar',
+    algorithm: 'Algoritma',
+    dfs: 'DFS (Hızlı)',
+    genetic: 'Genetik',
+    astar: 'A*',
+    maxEcts: 'Maksimum ECTS',
+    conflictTolerance: 'Çakışma toleransı',
+    lecture: 'Ders',
+    lab: 'Lab',
+    problemSession: 'PS',
+    teacher: 'Öğretim üyesi',
+    schedule: 'Saatler',
+    switchSection: 'Section değiştir',
+    removeCourse: 'Dersi kaldır',
+    pleaseSelectCourse: 'Lütfen önce ders seçin.',
+    courseCannotBeAdded: 'eklenemiyor.',
+    allSectionsConflict: 'Tüm sectionlar kilitli saatlerle çakışıyor.',
+    solutionRemoveLocks: 'Bazı kilitleri kaldırın veya farklı bir ders seçin.',
+    sectionConflictsWithLock: 'Bu section kilitli saatlerle çakışıyor.',
+    locked: 'kilitlendi',
+    sectionChanged: 'Section değiştirildi',
+    removedNoAlternative: 'Alternatif bulunamadığı için kaldırıldı',
+    toReaddRemoveLocks: 'Bu dersleri tekrar eklemek için kilitleri kaldırın',
+    backendConflict: 'Oluşturulan programlar kilitlerle çakışıyor. Mevcut seçim korunuyor.',
+    generationFailed: 'Oluşturma başarısız',
+    unknownError: 'Bilinmeyen hata',
+    unlock: 'Kilidi kaldır',
+    lock: 'Kilitle',
+    loadingCourses: 'Ders verileri yükleniyor...',
+    activeSource: 'Kaynak',
+    allCoursesLabel: 'Tümü',
+    selectedOnly: 'Seçili',
+    blockedOnly: 'Kilitli',
+    codeGroup: 'Kod grubu',
+    allCodeGroups: 'Tüm kod grupları',
+    academicUnit: 'Akademik birim',
+    allAcademicUnits: 'Tüm akademik birimler',
+    noSearchResults: 'Aramana uyan ders bulunamadı.',
+    resetFilters: 'Filtreleri sıfırla',
+    clearLocks: 'Kilitleri temizle',
+    clearSelection: 'Seçimi temizle',
+    quickTips: 'Hızlı ipuçları',
+    tipSelectCourses: 'Soldan ders ekleyip çıkararak taslak programını oluştur.',
+    tipLockSlots: 'Tablodaki kilit ikonuyla istemediğin saatleri kapat.',
+    tipCreateAlternatives: 'Hazır olduğunda program oluşturup alternatifleri gez.',
+    manualDraft: 'Manuel taslak görünümü',
+    generatedOptions: 'oluşturulan alternatif',
+    pickCoursesHint: 'Başlamak için ders seç.',
+    restoredSession: 'Son çalışma durumun geri yüklendi.',
+    selectionReset: 'Seçili dersler temizlendi.',
+    locksReset: 'Tüm kilitler kaldırıldı.',
+    selectionMayConflict: 'Seçilen section mevcut programla çakışabilir.',
+    unavailableCoursesSkipped: 'Bazı eski seçimler yeni veri kaynağında bulunamadı.',
+    prerequisiteWarning: 'Seçilen dersin bazı önkoşulları programında eksik:',
+    corequisiteWarning: 'Seçilen dersin bazı eşkoşulları programında bulunmuyor:',
+    missingPreCoWarning: 'Eksik Önkoşul/Eşkoşul Uyarıları',
+    undo: 'Geri al',
+    redo: 'Yinele',
+    nothingToUndo: 'Geri alınacak işlem yok.',
+    nothingToRedo: 'Yinelenecek işlem yok.',
+    undone: 'Son işlem geri alındı.',
+    redone: 'İşlem yinelendi.',
+    exportMenu: 'Dışa aktar',
+    exportIcal: 'Takvime aktar (.ics)',
+    exportPrint: 'Yazdır / PDF',
+    exportIcalDone: 'Takvim dosyası hazır.',
+    exportNothingToExport: 'Dışa aktarılacak ders yok.',
+    instructor: 'Öğretim üyesi',
+    allInstructors: 'Tüm öğretim üyeleri',
+    clearSearch: 'Aramayı temizle',
+    stats: 'İstatistikler',
+    statsFreeDays: 'Boş günler',
+    statsFreeDay: 'Boş gün',
+    statsBusyDays: 'Dolu günler',
+    statsTotalHours: 'Toplam ders saati',
+    statsGaps: 'Ara saat',
+    statsFirstClass: 'İlk ders',
+    statsLastClass: 'Son ders',
+    statsNoClass: 'Ders yok',
+    confirmClearSelectionTitle: 'Tüm seçimleri temizle?',
+    confirmClearSelectionMessage: 'Seçili tüm dersler programından kaldırılacak.',
+    confirmClearLocksTitle: 'Tüm kilitleri kaldır?',
+    confirmClearLocksMessage: 'İşaretli saat kilitlerinin hepsi silinecek.',
+    confirmYes: 'Evet, devam et',
+    confirmCancel: 'Vazgeç',
+    keyboardShortcuts: 'Klavye kısayolları',
+    shortcutUndo: 'Son işlemi geri al',
+    shortcutRedo: 'İşlemi yinele',
+    shortcutPrevSchedule: 'Önceki program',
+    shortcutNextSchedule: 'Sonraki program',
+    shortcutGenerate: 'Program oluştur',
+    shortcutToggleHelp: 'Bu pencereyi aç/kapat',
+    shortcutCloseModal: 'Açık pencereyi kapat',
+    shortcutFocusSearch: 'Aramaya odaklan',
+    shortcutExport: 'Dışa aktarma menüsü',
+    navScheduler: 'Scheduler',
+    navUpload: 'Yükle',
+    navAdmin: 'Admin',
+    navLogin: 'Giriş',
+    navLogout: 'Çıkış Yap',
+    close: 'Kapat',
+    closeDialog: 'Pencereyi kapat',
+    redirectTitle: "Scheduler'a yönlendiriliyor",
+    redirectDescription: 'Bu eski akış artık ana scheduler deneyimine taşındı.',
+    schedulerNoActiveTitle: 'Aktif dönem bulunamadı',
+    schedulerNoActiveDescription: 'Henüz global ders dönemi tanımlı değil. Devam etmek için .xlsx ders dosyanı yükleyebilirsin.',
+    schedulerOpenCourseDrawer: 'Dersler',
+    schedulerCoursesDrawerTitle: 'Dersler',
+    schedulerMobileDaySchedule: 'Günlük program',
+    schedulerNoCoursesForDay: 'Bu gün için ders yok.',
+    schedulerEmptySlot: 'Boş saat',
+    schedulerShareSchedule: 'Programı Paylaş',
+    schedulerShareAction: 'Programı Paylaş (Link & QR)',
+    schedulerShareDescription: 'Bu QR kodu okutarak veya aşağıdaki linki kullanarak paylaştığınız programa erişebilirsiniz.',
+    schedulerCopyLink: 'Kopyala',
+    schedulerShareCopied: 'Link kopyalandı.',
+    schedulerShareFailed: 'Program paylaşılamadı.',
+    schedulerShareCodeFailed: 'Kod oluşturulamadı.',
+    schedulerGeneratedCount: 'program oluşturuldu.',
+    schedulerSelectedAlternative: 'Seçili',
+    adminPanel: 'Admin Paneli',
+    adminRole: 'ADMIN',
+    adminNewSemester: 'Yeni Dönem Yükle',
+    adminNewSemesterDesc: 'Excel dosyasını yükleyerek tüm kullanıcılara sunun.',
+    adminSemesterName: 'Dönem Adı',
+    adminExcelFile: 'Excel Dosyası',
+    adminChooseExcel: 'Excel Seç',
+    adminUploading: 'Yükleniyor...',
+    adminSemesters: 'Yüklenen Dönemler',
+    adminNoSemesters: 'Henüz dönem yüklenmedi.',
+    adminActivate: 'Aktif Yap',
+    adminActive: 'AKTİF',
+    adminUsers: 'Kullanıcı',
+    adminSavedSchedules: 'Kayıtlı Program',
+    adminCourses: 'Ders',
+    adminActiveSemester: 'Aktif Dönem',
+    adminNone: 'Yok',
+    adminUploadInvalid: 'Sadece .xlsx uzantılı Excel dosyaları yüklenebilir.',
+    adminUploadSuccess: 'ders yüklendi.',
+    adminUploadError: 'Yükleme hatası',
+    adminActivateSuccess: 'Dönem aktif edildi.',
+    adminFetchError: 'Admin verileri alınamadı.',
+    adminActivateError: 'Dönem aktif edilemedi.',
+    adminStatsLoading: 'İstatistikler yükleniyor...',
+    adminSemestersLoading: 'Dönemler yükleniyor...',
+    sharedLoading: 'Paylaşılan program yükleniyor...',
+    sharedNotFoundTitle: 'Program bulunamadı',
+    sharedNotFoundDescription: 'Bu paylaşılan program bulunamadı veya silinmiş olabilir.',
+    sharedReturnHome: 'Anasayfaya Dön',
+    sharedSchedule: 'Paylaşılan Program',
+    sharedMakeOwn: 'Kendi Programını Yap',
+    sharedCourseCount: 'ders',
+    sharedMobileTitle: 'Günlük görünüm',
 };
+
+export type Translations = typeof tr;
+
+const en: Translations = {
+    changeFile: 'Change file',
+    settings: 'Settings',
+    courses: 'courses',
+    ects: 'ECTS',
+    createSchedule: 'Generate schedule',
+    creating: 'Creating...',
+    searchCourse: 'Search course...',
+    coursesSelected: 'courses selected',
+    noFileUploaded: 'No file uploaded yet',
+    uploadFile: 'Upload file',
+    allSectionsLocked: 'All sections locked',
+    weeklySchedule: 'Weekly schedule',
+    program: 'Schedule',
+    time: 'Time',
+    mon: 'Mon',
+    tue: 'Tue',
+    wed: 'Wed',
+    thu: 'Thu',
+    fri: 'Fri',
+    uploadTitle: 'Upload course schedule',
+    uploadSubtitle: 'Drag and drop or select a .xlsx Excel file',
+    uploading: 'Uploading...',
+    selectFile: 'Select file',
+    continue: 'Continue',
+    uploadInvalidFile: 'Please upload a .xlsx Excel file.',
+    uploadFailed: 'Something went wrong while uploading. Is the backend running?',
+    uploadDropTitle: 'Drag your Excel file here',
+    uploadDropOr: 'or',
+    uploadRemoveFile: 'Remove file',
+    uploadSubmit: 'Upload and open scheduler',
+    uploadSuccessTitle: 'Upload successful',
+    uploadFileLabel: 'File',
+    uploadCourseCountLabel: 'Course count',
+    uploadRedirecting: 'Redirecting to scheduler...',
+    uploadContinueToScheduler: 'Open scheduler',
+    homeLogin: 'Log in',
+    homeStart: 'Start',
+    homeBadge: 'Designed for Işık University students',
+    homeTitleLine1: 'Build Your Course Schedule',
+    homeTitleLine2: 'In Seconds',
+    homeDescription: 'Pick your courses, tune your preferences, and let the planner generate schedule options with fewer conflicts.',
+    homePrimaryCta: 'Start Now',
+    homeSecondaryCta: 'Upload Excel',
+    homeFeaturesEyebrow: 'Features',
+    homeFeaturesTitle: 'Why IşıkSchedule?',
+    homeFeatureFastTitle: 'Fast Schedule Generation',
+    homeFeatureFastDescription: 'Scan course options in seconds and find usable schedule combinations quickly.',
+    homeFeatureOptimizeTitle: 'Flexible Preferences',
+    homeFeatureOptimizeDescription: 'Manage free days, morning classes, ECTS limits, and conflict tolerance from one place.',
+    homeFeatureExportTitle: 'Easy Export',
+    homeFeatureExportDescription: 'Download your schedule as iCal, print to PDF, or create a shareable link.',
+    homeStepsEyebrow: 'Steps',
+    homeStepsTitle: 'How It Works',
+    homeStepUploadTitle: 'Upload',
+    homeStepUploadDescription: 'Upload an Excel course list or use the active global semester.',
+    homeStepSelectTitle: 'Select',
+    homeStepSelectDescription: 'Choose the courses you want and set your personal preferences.',
+    homeStepGenerateTitle: 'Generate',
+    homeStepGenerateDescription: 'Let the planner create suitable section combinations automatically.',
+    homeFooterText: 'An independent student project built for Işık University students.',
+    loginProductSubtitle: 'Course Schedule Builder',
+    loginTitle: 'Log In',
+    loginEmailLabel: 'Email',
+    loginPasswordLabel: 'Password',
+    loginSubmit: 'Log In',
+    loginSubmitting: 'Logging in...',
+    loginNoAccount: 'No account yet?',
+    loginRegisterLink: 'Create Account',
+    loginDomainNote: 'Only @isik.edu.tr and @isikun.edu.tr emails are accepted',
+    loginFailed: 'Login failed',
+    showPassword: 'Show password',
+    hidePassword: 'Hide password',
+    registerProductSubtitle: 'Create Account',
+    registerTitle: 'Sign Up',
+    registerEmailLabel: 'Email',
+    registerEmailHint: '@isik.edu.tr or @isikun.edu.tr',
+    registerPasswordLabel: 'Password',
+    registerConfirmLabel: 'Confirm Password',
+    registerSubmit: 'Sign Up',
+    registerSubmitting: 'Signing up...',
+    registerHaveAccount: 'Already have an account?',
+    registerLoginLink: 'Log In',
+    registerPasswordMismatch: 'Passwords do not match',
+    registerPasswordTooShort: 'Password must be at least 6 characters',
+    registerInvalidDomain: 'Email must be @isik.edu.tr or @isikun.edu.tr',
+    registerFailed: 'Registration failed',
+    settingsTitle: 'Settings',
+    algorithm: 'Algorithm',
+    dfs: 'DFS (Fast)',
+    genetic: 'Genetic',
+    astar: 'A*',
+    maxEcts: 'Max ECTS',
+    conflictTolerance: 'Conflict tolerance',
+    lecture: 'Lecture',
+    lab: 'Lab',
+    problemSession: 'PS',
+    teacher: 'Instructor',
+    schedule: 'Schedule',
+    switchSection: 'Switch section',
+    removeCourse: 'Remove course',
+    pleaseSelectCourse: 'Please select a course first.',
+    courseCannotBeAdded: 'cannot be added.',
+    allSectionsConflict: 'All sections conflict with locked slots.',
+    solutionRemoveLocks: 'Remove some locks or choose a different course.',
+    sectionConflictsWithLock: 'This section conflicts with locked slots.',
+    locked: 'locked',
+    sectionChanged: 'Section changed',
+    removedNoAlternative: 'Removed because no alternative was found',
+    toReaddRemoveLocks: 'Remove locks to add these courses back',
+    backendConflict: 'Generated schedules conflict with locked slots. Keeping your current selection.',
+    generationFailed: 'Generation failed',
+    unknownError: 'Unknown error',
+    unlock: 'Unlock',
+    lock: 'Lock',
+    loadingCourses: 'Loading course data...',
+    activeSource: 'Source',
+    allCoursesLabel: 'All',
+    selectedOnly: 'Selected',
+    blockedOnly: 'Blocked',
+    codeGroup: 'Code group',
+    allCodeGroups: 'All code groups',
+    academicUnit: 'Academic unit',
+    allAcademicUnits: 'All academic units',
+    noSearchResults: 'No courses match your search.',
+    resetFilters: 'Reset filters',
+    clearLocks: 'Clear locks',
+    clearSelection: 'Clear selection',
+    quickTips: 'Quick tips',
+    tipSelectCourses: 'Build a draft schedule by adding and removing courses from the left.',
+    tipLockSlots: 'Use the lock icon inside the table to block unwanted hours.',
+    tipCreateAlternatives: 'When ready, generate schedules and browse the alternatives.',
+    manualDraft: 'Manual draft view',
+    generatedOptions: 'generated options',
+    pickCoursesHint: 'Pick courses to get started.',
+    restoredSession: 'Your last workspace was restored.',
+    selectionReset: 'Selected courses were cleared.',
+    locksReset: 'All locks were cleared.',
+    selectionMayConflict: 'The selected section may still conflict with your current draft.',
+    unavailableCoursesSkipped: 'Some saved selections were not available in the new data source.',
+    prerequisiteWarning: 'Missing prerequisites for selected course:',
+    corequisiteWarning: 'Missing corequisites for selected course:',
+    missingPreCoWarning: 'Missing Prerequisites/Corequisites',
+    undo: 'Undo',
+    redo: 'Redo',
+    nothingToUndo: 'Nothing to undo.',
+    nothingToRedo: 'Nothing to redo.',
+    undone: 'Reverted the last change.',
+    redone: 'Reapplied the change.',
+    exportMenu: 'Export',
+    exportIcal: 'Download calendar (.ics)',
+    exportPrint: 'Print / Save as PDF',
+    exportIcalDone: 'Calendar file ready.',
+    exportNothingToExport: 'No courses to export yet.',
+    instructor: 'Instructor',
+    allInstructors: 'All instructors',
+    clearSearch: 'Clear search',
+    stats: 'Statistics',
+    statsFreeDays: 'Free days',
+    statsFreeDay: 'Free day',
+    statsBusyDays: 'Busy days',
+    statsTotalHours: 'Class hours',
+    statsGaps: 'Idle hours',
+    statsFirstClass: 'First class',
+    statsLastClass: 'Last class',
+    statsNoClass: 'No classes',
+    confirmClearSelectionTitle: 'Clear every course?',
+    confirmClearSelectionMessage: 'All selected courses will be removed from your draft.',
+    confirmClearLocksTitle: 'Remove every lock?',
+    confirmClearLocksMessage: 'All locked slots will be unlocked.',
+    confirmYes: 'Yes, continue',
+    confirmCancel: 'Cancel',
+    keyboardShortcuts: 'Keyboard shortcuts',
+    shortcutUndo: 'Undo the last change',
+    shortcutRedo: 'Redo the last change',
+    shortcutPrevSchedule: 'Previous schedule',
+    shortcutNextSchedule: 'Next schedule',
+    shortcutGenerate: 'Generate schedule',
+    shortcutToggleHelp: 'Open or close this panel',
+    shortcutCloseModal: 'Close the open dialog',
+    shortcutFocusSearch: 'Focus the course search',
+    shortcutExport: 'Open export menu',
+    navScheduler: 'Scheduler',
+    navUpload: 'Upload',
+    navAdmin: 'Admin',
+    navLogin: 'Log in',
+    navLogout: 'Log out',
+    close: 'Close',
+    closeDialog: 'Close dialog',
+    redirectTitle: 'Redirecting to Scheduler',
+    redirectDescription: 'This legacy flow now opens the main scheduler experience.',
+    schedulerNoActiveTitle: 'No active semester found',
+    schedulerNoActiveDescription: 'There is no global course semester yet. Upload a .xlsx course file to continue.',
+    schedulerOpenCourseDrawer: 'Courses',
+    schedulerCoursesDrawerTitle: 'Courses',
+    schedulerMobileDaySchedule: 'Daily schedule',
+    schedulerNoCoursesForDay: 'No classes for this day.',
+    schedulerEmptySlot: 'Free slot',
+    schedulerShareSchedule: 'Share Schedule',
+    schedulerShareAction: 'Share Schedule (Link & QR)',
+    schedulerShareDescription: 'Scan this QR code or use the link below to access your shared schedule.',
+    schedulerCopyLink: 'Copy',
+    schedulerShareCopied: 'Link copied.',
+    schedulerShareFailed: 'Failed to share schedule.',
+    schedulerShareCodeFailed: 'Failed to generate code.',
+    schedulerGeneratedCount: 'schedules generated.',
+    schedulerSelectedAlternative: 'Selected',
+    adminPanel: 'Admin Panel',
+    adminRole: 'ADMIN',
+    adminNewSemester: 'Upload New Semester',
+    adminNewSemesterDesc: 'Upload an Excel file and make it available to everyone.',
+    adminSemesterName: 'Semester Name',
+    adminExcelFile: 'Excel File',
+    adminChooseExcel: 'Choose Excel',
+    adminUploading: 'Uploading...',
+    adminSemesters: 'Uploaded Semesters',
+    adminNoSemesters: 'No semester uploaded yet.',
+    adminActivate: 'Activate',
+    adminActive: 'ACTIVE',
+    adminUsers: 'Users',
+    adminSavedSchedules: 'Saved Schedules',
+    adminCourses: 'Courses',
+    adminActiveSemester: 'Active Semester',
+    adminNone: 'None',
+    adminUploadInvalid: 'Only .xlsx Excel files can be uploaded.',
+    adminUploadSuccess: 'courses uploaded.',
+    adminUploadError: 'Upload failed',
+    adminActivateSuccess: 'Semester activated.',
+    adminFetchError: 'Admin data could not be loaded.',
+    adminActivateError: 'Semester could not be activated.',
+    adminStatsLoading: 'Loading statistics...',
+    adminSemestersLoading: 'Loading semesters...',
+    sharedLoading: 'Loading shared schedule...',
+    sharedNotFoundTitle: 'Schedule not found',
+    sharedNotFoundDescription: 'This shared schedule could not be found or may have been deleted.',
+    sharedReturnHome: 'Return Home',
+    sharedSchedule: 'Shared Schedule',
+    sharedMakeOwn: 'Make Your Own',
+    sharedCourseCount: 'courses',
+    sharedMobileTitle: 'Daily view',
+};
+
+const translations: Record<Language, Translations> = { tr, en };
 
 interface LanguageContextType {
     lang: Language;
@@ -443,25 +502,31 @@ const LanguageContext = createContext<LanguageContextType | null>(null);
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
     const [lang, setLang] = useState<Language>('tr');
+    const [hasLoadedPreference, setHasLoadedPreference] = useState(false);
 
     useEffect(() => {
         try {
             const saved = localStorage.getItem('isikschedule:lang') as Language | null;
             if (saved === 'tr' || saved === 'en') {
                 setLang(saved);
+                document.documentElement.lang = saved;
             }
         } catch {
             // Ignore storage access errors.
+        } finally {
+            setHasLoadedPreference(true);
         }
     }, []);
 
     useEffect(() => {
+        if (!hasLoadedPreference) return;
+        document.documentElement.lang = lang;
         try {
             localStorage.setItem('isikschedule:lang', lang);
         } catch {
             // Ignore storage access errors.
         }
-    }, [lang]);
+    }, [hasLoadedPreference, lang]);
 
     return (
         <LanguageContext.Provider value={{ lang, setLang, t: translations[lang] }}>
@@ -484,21 +549,27 @@ export function LanguageSwitcher() {
     return (
         <div className="flex items-center bg-surface-700/50 rounded-lg p-0.5 border border-white/5">
             <button
+                type="button"
                 onClick={() => setLang('tr')}
-                className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-all duration-150 ${lang === 'tr'
-                    ? 'bg-isik-blue-lighter/20 text-isik-blue-lighter shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
-                    }`}
-                title="Turkce"
+                aria-label="Türkçe"
+                className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-all duration-150 ${
+                    lang === 'tr'
+                        ? 'bg-isik-blue-lighter/20 text-isik-blue-lighter shadow-sm'
+                        : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title="Türkçe"
             >
                 TR
             </button>
             <button
+                type="button"
                 onClick={() => setLang('en')}
-                className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-all duration-150 ${lang === 'en'
-                    ? 'bg-isik-blue-lighter/20 text-isik-blue-lighter shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
-                    }`}
+                aria-label="English"
+                className={`px-2.5 py-1.5 rounded-md text-xs font-medium transition-all duration-150 ${
+                    lang === 'en'
+                        ? 'bg-isik-blue-lighter/20 text-isik-blue-lighter shadow-sm'
+                        : 'text-slate-400 hover:text-slate-200'
+                }`}
                 title="English"
             >
                 EN

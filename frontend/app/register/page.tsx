@@ -2,27 +2,31 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { GraduationCap, Mail, Lock, Sparkles, Loader2 } from 'lucide-react';
+import { ArrowRight, GraduationCap, Mail, Lock, Loader2, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { LanguageSwitcher, useLanguage } from '../context/LanguageContext';
 
 export default function RegisterPage() {
     const { register } = useAuth();
+    const { t } = useLanguage();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleSubmit = async (event: React.FormEvent) => {
+        event.preventDefault();
         setError('');
 
-        if (password !== confirmPassword) { setError('Şifreler eşleşmiyor'); return; }
-        if (password.length < 6) { setError('Şifre en az 6 karakter olmalı'); return; }
+        if (password !== confirmPassword) { setError(t.registerPasswordMismatch); return; }
+        if (password.length < 6) { setError(t.registerPasswordTooShort); return; }
 
         const domain = email.split('@')[1]?.toLowerCase();
         if (domain !== 'isik.edu.tr' && domain !== 'isikun.edu.tr') {
-            setError('E-posta @isik.edu.tr veya @isikun.edu.tr olmalı');
+            setError(t.registerInvalidDomain);
             return;
         }
 
@@ -30,7 +34,7 @@ export default function RegisterPage() {
         try {
             await register(email, password);
         } catch (err: any) {
-            setError(err.message || 'Kayıt başarısız');
+            setError(err.message || t.registerFailed);
         } finally {
             setIsLoading(false);
         }
@@ -38,23 +42,21 @@ export default function RegisterPage() {
 
     return (
         <div className="min-h-screen bg-surface-900 flex items-center justify-center p-4 relative overflow-hidden">
-            <div className="absolute inset-0 pointer-events-none">
-                <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-gradient-to-b from-purple-500/10 to-transparent rounded-full blur-3xl" />
+            <div className="absolute right-4 top-4 z-10">
+                <LanguageSwitcher />
             </div>
 
             <div className="relative w-full max-w-sm">
-                {/* Logo */}
                 <div className="text-center mb-8">
-                    <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-600 to-pink-500 shadow-xl shadow-purple-500/20 mb-4">
+                    <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-isik-blue to-isik-blue-lighter shadow-xl shadow-blue-500/20 mb-4">
                         <GraduationCap className="w-7 h-7 text-white" />
                     </div>
                     <h1 className="text-2xl font-bold text-white">IşıkSchedule</h1>
-                    <p className="text-sm text-slate-500 mt-1">Hesap Oluştur</p>
+                    <p className="text-sm text-slate-400 mt-1">{t.registerProductSubtitle}</p>
                 </div>
 
-                {/* Form */}
                 <div className="glass-panel p-6">
-                    <h2 className="text-lg font-semibold text-white text-center mb-6">Kayıt Ol</h2>
+                    <h2 className="text-lg font-semibold text-white text-center mb-6">{t.registerTitle}</h2>
 
                     {error && (
                         <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm mb-5">
@@ -65,53 +67,74 @@ export default function RegisterPage() {
 
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div>
-                            <label className="text-[11px] font-medium uppercase tracking-wider text-slate-500 block mb-1.5">E-posta</label>
+                            <label htmlFor="register-email" className="text-[11px] font-medium uppercase tracking-wider text-slate-400 block mb-1.5">{t.registerEmailLabel}</label>
                             <div className="relative">
                                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                                 <input
-                                    type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                                    id="register-email" name="email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)}
                                     placeholder="ornek@isik.edu.tr" className="input-field !pl-10" required
+                                    suppressHydrationWarning
                                 />
                             </div>
-                            <p className="text-[10px] text-slate-600 mt-1 pl-1">@isik.edu.tr veya @isikun.edu.tr</p>
+                            <p className="text-[10px] text-slate-400 mt-1 pl-1">{t.registerEmailHint}</p>
                         </div>
 
                         <div>
-                            <label className="text-[11px] font-medium uppercase tracking-wider text-slate-500 block mb-1.5">Şifre</label>
+                            <label htmlFor="register-password" className="text-[11px] font-medium uppercase tracking-wider text-slate-400 block mb-1.5">{t.registerPasswordLabel}</label>
                             <div className="relative">
                                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                                 <input
-                                    type="password" value={password} onChange={(e) => setPassword(e.target.value)}
-                                    placeholder="••••••••" className="input-field !pl-10" required minLength={6}
+                                    id="register-password" name="password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)}
+                                    placeholder="••••••••" className="input-field !pl-10 !pr-10" required minLength={6}
+                                    suppressHydrationWarning
                                 />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword((prev) => !prev)}
+                                    aria-label={showPassword ? t.hidePassword : t.showPassword}
+                                    title={showPassword ? t.hidePassword : t.showPassword}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+                                >
+                                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
                             </div>
                         </div>
 
                         <div>
-                            <label className="text-[11px] font-medium uppercase tracking-wider text-slate-500 block mb-1.5">Şifre Tekrar</label>
+                            <label htmlFor="register-confirm-password" className="text-[11px] font-medium uppercase tracking-wider text-slate-400 block mb-1.5">{t.registerConfirmLabel}</label>
                             <div className="relative">
                                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                                 <input
-                                    type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
-                                    placeholder="••••••••" className="input-field !pl-10" required
+                                    id="register-confirm-password" name="confirmPassword" type={showConfirmPassword ? 'text' : 'password'} autoComplete="new-password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)}
+                                    placeholder="••••••••" className="input-field !pl-10 !pr-10" required
+                                    suppressHydrationWarning
                                 />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowConfirmPassword((prev) => !prev)}
+                                    aria-label={showConfirmPassword ? t.hidePassword : t.showPassword}
+                                    title={showConfirmPassword ? t.hidePassword : t.showPassword}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+                                >
+                                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
                             </div>
                         </div>
 
                         <button type="submit" disabled={isLoading}
-                            className="btn w-full !py-3 bg-gradient-to-r from-purple-600 to-pink-500 text-white hover:from-purple-700 hover:to-pink-600 shadow-lg shadow-purple-500/20">
+                            className="btn-primary w-full !py-3">
                             {isLoading ? (
-                                <><Loader2 className="w-4 h-4 animate-spin" />Kayıt yapılıyor...</>
+                                <><Loader2 className="w-4 h-4 animate-spin" />{t.registerSubmitting}</>
                             ) : (
-                                <><Sparkles className="w-4 h-4" />Kayıt Ol</>
+                                <>{t.registerSubmit}<ArrowRight className="w-4 h-4" /></>
                             )}
                         </button>
                     </form>
 
-                    <div className="mt-5 text-center text-sm text-slate-500">
-                        Zaten hesabınız var mı?{' '}
-                        <Link href="/login" className="text-purple-400 hover:text-purple-300 transition-colors font-medium">
-                            Giriş Yap
+                    <div className="mt-5 text-center text-sm text-slate-400">
+                        {t.registerHaveAccount}{' '}
+                        <Link href="/login" className="text-isik-blue-lighter hover:text-blue-300 transition-colors font-medium">
+                            {t.registerLoginLink}
                         </Link>
                     </div>
                 </div>

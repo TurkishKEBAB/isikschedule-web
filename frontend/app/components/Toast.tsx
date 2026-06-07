@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useCallback, useMemo, ReactNode } from 'react';
 import { X, CheckCircle, AlertTriangle, AlertCircle, Info } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 type ToastType = 'success' | 'error' | 'warning' | 'info';
 
@@ -37,6 +38,7 @@ const BORDER_COLORS: Record<ToastType, string> = {
 };
 
 export function ToastProvider({ children }: { children: ReactNode }) {
+    const { t } = useLanguage();
     const [toasts, setToasts] = useState<Toast[]>([]);
 
     const addToast = useCallback((message: string, type: ToastType = 'info', duration: number = 4000) => {
@@ -83,18 +85,25 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             {children}
 
             {/* Toast Container */}
-            <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none">
-                {toasts.map((t) => (
+            <div
+                aria-live="polite"
+                aria-atomic="false"
+                className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none"
+            >
+                {toasts.map((toastItem) => (
                     <div
-                        key={t.id}
+                        key={toastItem.id}
+                        role={toastItem.type === 'error' ? 'alert' : undefined}
                         className={`pointer-events-auto animate-slide-in flex items-start gap-3 px-4 py-3 
-                            bg-surface-800/95 backdrop-blur-lg border ${BORDER_COLORS[t.type]} 
+                            bg-surface-800/95 backdrop-blur-lg border ${BORDER_COLORS[toastItem.type]} 
                             rounded-xl shadow-2xl shadow-black/30 max-w-sm`}
                     >
-                        {ICONS[t.type]}
-                        <p className="text-sm text-slate-200 leading-relaxed flex-1">{t.message}</p>
+                        {ICONS[toastItem.type]}
+                        <p className="text-sm text-slate-200 leading-relaxed flex-1">{toastItem.message}</p>
                         <button
-                            onClick={() => removeToast(t.id)}
+                            type="button"
+                            onClick={() => removeToast(toastItem.id)}
+                            aria-label={t.close}
                             className="text-slate-500 hover:text-slate-300 transition-colors flex-shrink-0 mt-0.5"
                         >
                             <X className="w-4 h-4" />
