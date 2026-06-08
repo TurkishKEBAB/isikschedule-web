@@ -1,28 +1,44 @@
 'use client';
 
 import Link from 'next/link';
-import { GraduationCap, Zap, Target, Download, ArrowRight, Calendar, ChevronRight } from 'lucide-react';
+import {
+    ArrowRight,
+    Calendar,
+    CheckCircle2,
+    ChevronRight,
+    Download,
+    GraduationCap,
+    Sparkles,
+    Target,
+    Zap,
+} from 'lucide-react';
 import { LanguageSwitcher, useLanguage } from './context/LanguageContext';
+import { AuroraBackground } from './components/AuroraBackground';
+import { Reveal } from './components/Reveal';
+import { CountUp } from './components/CountUp';
+import { SchedulePreview } from './components/SchedulePreview';
 
 export default function Home() {
     const { t } = useLanguage();
 
     return (
-        <main className="min-h-screen bg-surface-900">
-            <header className="sticky top-0 z-50 bg-surface-900/80 backdrop-blur-xl border-b border-white/5">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6">
-                    <div className="flex items-center justify-between h-16">
+        <main className="relative min-h-screen overflow-x-hidden bg-[#0B1020] text-slate-100 antialiased">
+            <AuroraBackground />
+
+            <header className="sticky top-0 z-50">
+                <div className="mx-auto mt-4 max-w-7xl px-4 sm:px-6">
+                    <div className="flex h-16 items-center justify-between rounded-2xl border border-white/10 bg-white/[0.05] px-4 shadow-2xl shadow-black/40 backdrop-blur-xl ring-1 ring-inset ring-white/10">
                         <Link href="/" className="flex items-center gap-2.5">
-                            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-isik-blue to-isik-blue-lighter flex items-center justify-center shadow-lg shadow-blue-500/20">
-                                <GraduationCap className="w-5 h-5 text-white" />
+                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-isik-blue to-isik-blue-lighter shadow-lg shadow-blue-500/30">
+                                <GraduationCap className="h-5 w-5 text-white" />
                             </div>
-                            <span className="text-lg font-bold text-white tracking-tight">IşıkSchedule</span>
+                            <span className="text-lg font-bold tracking-tight text-white">IşıkSchedule</span>
                         </Link>
                         <nav className="flex items-center gap-2">
                             <LanguageSwitcher />
                             <Link href="/login" className="btn-ghost !text-xs">{t.homeLogin}</Link>
-                            <Link href="/scheduler" className="btn-primary !text-xs !py-2">
-                                <Calendar className="w-3.5 h-3.5" />
+                            <Link href="/scheduler" className="btn-primary magnetic !text-xs !py-2">
+                                <Calendar className="h-3.5 w-3.5" />
                                 {t.homeStart}
                             </Link>
                         </nav>
@@ -30,123 +46,177 @@ export default function Home() {
                 </div>
             </header>
 
-            <section className="relative overflow-hidden border-b border-white/5">
-                <div className="relative max-w-5xl mx-auto px-4 sm:px-6 pt-20 pb-24 text-center">
-                    <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-isik-blue-lighter/10 border border-isik-blue-lighter/20 text-isik-blue-lighter text-sm font-medium mb-8">
-                        <Zap className="w-3.5 h-3.5" />
-                        {t.homeBadge}
-                    </div>
+            <section className="relative z-10 mx-auto max-w-7xl px-4 pt-16 pb-24 sm:px-6 lg:pt-24">
+                <div className="grid items-center gap-12 lg:grid-cols-[0.95fr_1.05fr]">
+                    <Reveal className="text-center lg:text-left">
+                        <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-isik-blue-lighter/25 bg-isik-blue-lighter/10 px-4 py-1.5 text-sm font-medium text-isik-blue-lighter backdrop-blur-md">
+                            <Sparkles className="h-3.5 w-3.5" />
+                            {t.homeBadge}
+                        </div>
 
-                    <h1 className="text-5xl sm:text-6xl font-bold text-white leading-tight tracking-tight mb-6">
-                        {t.homeTitleLine1}
-                        <br />
-                        <span className="bg-gradient-to-r from-isik-blue-lighter to-isik-gold bg-clip-text text-transparent">
-                            {t.homeTitleLine2}
-                        </span>
-                    </h1>
+                        <h1 className="mb-6 text-5xl font-black leading-[1.04] tracking-tight text-white sm:text-6xl lg:text-7xl">
+                            <span className="block">{t.homeTitleLine1}</span>
+                            <span className="grad-text block">{t.homeTitleLine2}</span>
+                        </h1>
 
-                    <p className="text-lg text-slate-400 max-w-2xl mx-auto mb-10 leading-relaxed">
-                        {t.homeDescription}
-                    </p>
+                        <p className="mx-auto mb-9 max-w-xl text-base leading-relaxed text-slate-400 lg:mx-0 lg:text-lg">
+                            {t.homeDescription}
+                        </p>
 
-                    <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-                        <Link href="/scheduler" className="btn-primary !px-8 !py-3.5 !text-base !shadow-xl !shadow-blue-500/25">
-                            {t.homePrimaryCta}
-                            <ArrowRight className="w-5 h-5" />
-                        </Link>
-                        <Link href="/upload" className="btn-secondary !px-8 !py-3.5 !text-base">
-                            {t.homeSecondaryCta}
-                            <ChevronRight className="w-4 h-4" />
-                        </Link>
-                    </div>
+                        <div className="flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center lg:justify-start">
+                            <Link href="/scheduler" className="magnetic group inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-isik-blue via-isik-blue-light to-isik-blue-lighter px-8 py-4 text-base font-semibold text-white shadow-xl shadow-blue-500/30">
+                                {t.homePrimaryCta}
+                                <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
+                            </Link>
+                            <Link href="/upload" className="magnetic inline-flex items-center justify-center gap-2 rounded-2xl border border-white/[0.12] bg-white/[0.05] px-8 py-4 text-base font-semibold text-slate-100 backdrop-blur-md hover:bg-white/[0.08]">
+                                {t.homeSecondaryCta}
+                                <ChevronRight className="h-4 w-4" />
+                            </Link>
+                        </div>
+
+                        <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-slate-400 lg:justify-start">
+                            <span className="inline-flex items-center gap-1.5">
+                                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                                {t.homeFeatureFastTitle}
+                            </span>
+                            <span className="inline-flex items-center gap-1.5">
+                                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                                {t.homeFeatureExportTitle}
+                            </span>
+                        </div>
+                    </Reveal>
+
+                    <Reveal delay={120} className="relative mx-auto w-full max-w-xl">
+                        <div className="absolute -inset-6 rounded-[40px] bg-gradient-to-br from-isik-blue-lighter/20 via-lab/15 to-isik-gold/15 blur-2xl" />
+                        <div className="relative">
+                            <SchedulePreview />
+
+                            <div className="absolute -bottom-6 -left-6 flex items-center gap-4 rounded-2xl border border-white/[0.12] bg-[#0E1428]/85 px-5 py-4 shadow-2xl shadow-black/50 backdrop-blur-xl ring-1 ring-inset ring-white/10">
+                                <div>
+                                    <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-slate-500">{t.homeStatScore}</p>
+                                    <CountUp to={92} className="grad-text block text-3xl font-black leading-none" />
+                                </div>
+                                <div className="h-10 w-px bg-white/10" />
+                                <div>
+                                    <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-slate-500">{t.homeStatEcts}</p>
+                                    <CountUp to={28} className="block text-3xl font-black leading-none text-white" />
+                                </div>
+                            </div>
+                        </div>
+                    </Reveal>
                 </div>
             </section>
 
-            <section className="relative py-24 px-4 sm:px-6">
-                <div className="max-w-5xl mx-auto">
-                    <div className="text-center mb-16">
-                        <p className="text-xs font-semibold tracking-[0.2em] uppercase text-isik-blue-lighter mb-3">{t.homeFeaturesEyebrow}</p>
-                        <h2 className="text-3xl font-bold text-white">{t.homeFeaturesTitle}</h2>
-                    </div>
+            <section className="relative z-10 mx-auto max-w-6xl px-4 py-24 sm:px-6">
+                <Reveal className="mb-16 text-center">
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-[0.24em] text-isik-blue-lighter">{t.homeFeaturesEyebrow}</p>
+                    <h2 className="text-4xl font-bold tracking-tight text-white">
+                        {t.homeFeaturesTitle}
+                    </h2>
+                </Reveal>
 
-                    <div className="grid md:grid-cols-3 gap-6">
-                        <FeatureCard
-                            icon={<Zap className="w-6 h-6" />}
-                            iconBg="from-amber-500/20 to-orange-500/20"
-                            iconColor="text-amber-400"
-                            title={t.homeFeatureFastTitle}
-                            description={t.homeFeatureFastDescription}
-                        />
-                        <FeatureCard
-                            icon={<Target className="w-6 h-6" />}
-                            iconBg="from-blue-500/20 to-indigo-500/20"
-                            iconColor="text-blue-400"
-                            title={t.homeFeatureOptimizeTitle}
-                            description={t.homeFeatureOptimizeDescription}
-                        />
-                        <FeatureCard
-                            icon={<Download className="w-6 h-6" />}
-                            iconBg="from-emerald-500/20 to-teal-500/20"
-                            iconColor="text-emerald-400"
-                            title={t.homeFeatureExportTitle}
-                            description={t.homeFeatureExportDescription}
-                        />
-                    </div>
+                <div className="grid gap-6 md:grid-cols-3">
+                    <FeatureCard
+                        delay={0}
+                        border="from-white/15 via-isik-gold/25 to-orange-500/25"
+                        hoverShadow="hover:shadow-amber-500/20"
+                        iconBg="from-amber-500/25 to-orange-500/20"
+                        iconColor="text-amber-300"
+                        icon={<Zap className="h-6 w-6" />}
+                        title={t.homeFeatureFastTitle}
+                        description={t.homeFeatureFastDescription}
+                    />
+                    <FeatureCard
+                        delay={120}
+                        border="from-white/15 via-lab/25 to-isik-blue-lighter/25"
+                        hoverShadow="hover:shadow-violet-500/20"
+                        iconBg="from-blue-500/25 to-indigo-500/20"
+                        iconColor="text-blue-300"
+                        icon={<Target className="h-6 w-6" />}
+                        title={t.homeFeatureOptimizeTitle}
+                        description={t.homeFeatureOptimizeDescription}
+                    />
+                    <FeatureCard
+                        delay={240}
+                        border="from-white/15 via-ps/25 to-isik-blue-lighter/25"
+                        hoverShadow="hover:shadow-emerald-500/20"
+                        iconBg="from-emerald-500/25 to-teal-500/20"
+                        iconColor="text-emerald-300"
+                        icon={<Download className="h-6 w-6" />}
+                        title={t.homeFeatureExportTitle}
+                        description={t.homeFeatureExportDescription}
+                    />
                 </div>
             </section>
 
-            <section className="py-24 px-4 sm:px-6 border-t border-white/5">
-                <div className="max-w-5xl mx-auto">
-                    <div className="text-center mb-16">
-                        <p className="text-xs font-semibold tracking-[0.2em] uppercase text-isik-blue-lighter mb-3">{t.homeStepsEyebrow}</p>
-                        <h2 className="text-3xl font-bold text-white">{t.homeStepsTitle}</h2>
-                    </div>
+            <section className="relative z-10 mx-auto max-w-5xl px-4 py-24 sm:px-6">
+                <Reveal className="mb-16 text-center">
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-[0.24em] text-isik-blue-lighter">{t.homeStepsEyebrow}</p>
+                    <h2 className="text-4xl font-bold tracking-tight text-white">{t.homeStepsTitle}</h2>
+                </Reveal>
 
-                    <div className="grid md:grid-cols-3 gap-8">
-                        <StepCard step="01" title={t.homeStepUploadTitle} description={t.homeStepUploadDescription} />
-                        <StepCard step="02" title={t.homeStepSelectTitle} description={t.homeStepSelectDescription} />
-                        <StepCard step="03" title={t.homeStepGenerateTitle} description={t.homeStepGenerateDescription} />
-                    </div>
+                <div className="relative grid gap-10 md:grid-cols-3">
+                    <div className="absolute left-0 right-0 top-7 hidden h-px bg-gradient-to-r from-transparent via-lab/50 to-transparent md:block" />
+                    <StepCard delay={0} step="01" stepColor="text-isik-blue-lighter" title={t.homeStepUploadTitle} description={t.homeStepUploadDescription} />
+                    <StepCard delay={120} step="02" stepColor="text-violet-300" title={t.homeStepSelectTitle} description={t.homeStepSelectDescription} />
+                    <StepCard delay={240} step="03" stepColor="text-amber-300" title={t.homeStepGenerateTitle} description={t.homeStepGenerateDescription} />
                 </div>
             </section>
 
-            <footer className="border-t border-white/5 py-8 px-4 sm:px-6">
-                <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <div className="flex items-center gap-2 text-slate-400 text-sm">
-                        <GraduationCap className="w-4 h-4" />
+            <footer className="relative z-10 border-t border-white/10 px-4 py-10 sm:px-6">
+                <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 sm:flex-row">
+                    <div className="flex items-center gap-2 text-sm text-slate-400">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-isik-blue to-isik-blue-lighter">
+                            <GraduationCap className="h-4 w-4 text-white" />
+                        </div>
                         <span>© 2026 IşıkSchedule</span>
                     </div>
-                    <p className="text-slate-400 text-sm">
-                        {t.homeFooterText}
-                    </p>
+                    <p className="text-center text-sm text-slate-400 sm:text-right">{t.homeFooterText}</p>
                 </div>
             </footer>
         </main>
     );
 }
 
-function FeatureCard({ icon, iconBg, iconColor, title, description }: {
-    icon: React.ReactNode; iconBg: string; iconColor: string; title: string; description: string;
+function FeatureCard({ icon, iconBg, iconColor, border, hoverShadow, title, description, delay }: {
+    icon: React.ReactNode;
+    iconBg: string;
+    iconColor: string;
+    border: string;
+    hoverShadow: string;
+    title: string;
+    description: string;
+    delay: number;
 }) {
     return (
-        <div className="group glass-panel p-6 hover:border-white/10 transition-all duration-300">
-            <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${iconBg} flex items-center justify-center ${iconColor} mb-4`}>
-                {icon}
+        <Reveal delay={delay} className="h-full">
+            <div className={`lift group h-full rounded-[28px] bg-gradient-to-br ${border} p-[1.5px] shadow-xl shadow-black/30 ${hoverShadow}`}>
+                <div className="h-full rounded-[27px] bg-[#0E1428]/90 p-7 backdrop-blur-xl">
+                    <div className={`mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${iconBg} ${iconColor} ring-1 ring-inset ring-white/10`}>
+                        {icon}
+                    </div>
+                    <h3 className="mb-2 text-lg font-semibold text-white">{title}</h3>
+                    <p className="text-sm leading-relaxed text-slate-400">{description}</p>
+                </div>
             </div>
-            <h3 className="text-lg font-semibold text-white mb-2">{title}</h3>
-            <p className="text-sm text-slate-400 leading-relaxed">{description}</p>
-        </div>
+        </Reveal>
     );
 }
 
-function StepCard({ step, title, description }: { step: string; title: string; description: string }) {
+function StepCard({ step, stepColor, title, description, delay }: {
+    step: string;
+    stepColor: string;
+    title: string;
+    description: string;
+    delay: number;
+}) {
     return (
-        <div className="text-center">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-surface-800 border border-white/5 text-isik-blue-lighter font-bold text-lg mb-4">
+        <Reveal delay={delay} className="relative text-center">
+            <div className={`mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-[#0E1428]/85 text-lg font-black ${stepColor} shadow-lg shadow-black/40 ring-1 ring-inset ring-white/10 backdrop-blur-xl`}>
                 {step}
             </div>
-            <h3 className="text-lg font-semibold text-white mb-2">{title}</h3>
-            <p className="text-sm text-slate-400 leading-relaxed">{description}</p>
-        </div>
+            <h3 className="mb-2 text-lg font-semibold text-white">{title}</h3>
+            <p className="text-sm leading-relaxed text-slate-400">{description}</p>
+        </Reveal>
     );
 }

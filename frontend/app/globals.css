@@ -102,6 +102,76 @@
   }
 }
 
+/* ============================================================
+   Aurora Living — shared motion system (Landing / Results / Scheduler)
+   Pure CSS; JS only toggles `.is-visible` via IntersectionObserver.
+   ============================================================ */
+
+@keyframes aurora-drift-1 { 0%, 100% { transform: translate3d(0, 0, 0) scale(1); } 50% { transform: translate3d(8%, 6%, 0) scale(1.25); } }
+@keyframes aurora-drift-2 { 0%, 100% { transform: translate3d(0, 0, 0) scale(1.1); } 50% { transform: translate3d(-10%, 8%, 0) scale(0.9); } }
+@keyframes aurora-drift-3 { 0%, 100% { transform: translate3d(0, 0, 0) scale(1); } 50% { transform: translate3d(6%, -8%, 0) scale(1.2); } }
+@keyframes aurora-drift-4 { 0%, 100% { transform: translate3d(0, 0, 0) scale(0.95); } 50% { transform: translate3d(-7%, -5%, 0) scale(1.15); } }
+@keyframes shimmer-sweep { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+@keyframes cell-pop { 0% { opacity: 0; transform: scale(0.7); } 100% { opacity: 1; transform: scale(1); } }
+/* Victoria 3 style "hold to lock" ring used by LockingTooltip. */
+@keyframes tip-lock-ring { from { stroke-dashoffset: var(--tip-ring-c); } to { stroke-dashoffset: 0; } }
+
+@layer components {
+  /* Drifting aurora blobs */
+  .aurora-blob-1 { animation: aurora-drift-1 18s ease-in-out infinite; }
+  .aurora-blob-2 { animation: aurora-drift-2 22s ease-in-out infinite; }
+  .aurora-blob-3 { animation: aurora-drift-3 26s ease-in-out infinite; }
+  .aurora-blob-4 { animation: aurora-drift-4 30s ease-in-out infinite; }
+
+  /* Brand gradient text */
+  .grad-text {
+    background: linear-gradient(100deg, #3B82F6 0%, #8B5CF6 45%, #F59E0B 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* Shimmer (skeleton loading) */
+  .shimmer {
+    background: linear-gradient(110deg, rgba(255, 255, 255, 0.03) 8%, rgba(255, 255, 255, 0.10) 18%, rgba(255, 255, 255, 0.03) 33%);
+    background-size: 200% 100%;
+    animation: shimmer-sweep 2.2s linear infinite;
+  }
+
+  /* Hover micro-interactions */
+  .magnetic { transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s ease, filter 0.25s ease; }
+  .magnetic:hover { transform: translateY(-2px); filter: brightness(1.08); }
+  .lift { transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.35s ease, border-color 0.35s ease; }
+  .lift:hover { transform: translateY(-6px); }
+
+  /* Scroll reveal (toggled by Reveal component) */
+  .reveal {
+    opacity: 0;
+    transform: translateY(32px);
+    transition: opacity 0.7s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+    will-change: opacity, transform;
+  }
+  .reveal.is-visible { opacity: 1; transform: translateY(0); }
+
+  /* Living grid cells (staggered pop-in when parent is visible) */
+  .course-cell-anim { opacity: 0; transform: scale(0.7); transform-origin: center; }
+  .preview-grid.is-visible .course-cell-anim { animation: cell-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+
+  /* One-shot entrance for scheduler grid cells (plays on mount; no persistent
+     hidden state, so cells stay visible under reduced-motion / no-JS). */
+  .cell-enter { animation: cell-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aurora-blob-1, .aurora-blob-2, .aurora-blob-3, .aurora-blob-4 { animation: none !important; }
+  .shimmer { animation: none !important; }
+  .magnetic, .lift { transition: none !important; }
+  .magnetic:hover, .lift:hover { transform: none !important; }
+  .reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
+  .course-cell-anim { opacity: 1 !important; transform: none !important; animation: none !important; }
+  .cell-enter { animation: none !important; }
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

@@ -245,11 +245,11 @@ Dosyalar:
 
 Todo:
 
-- [ ] Ortak `UploadDropzone` component'i oluşturmayı değerlendir.
-- [ ] Tüm dropzone alanını label/input ile gerçekten tıklanabilir yap.
-- [ ] `sr-only` input + `peer-focus-visible` pattern'i kullan.
-- [ ] Dropzone'a `onKeyDown` ile Enter/Space desteği gerekiyorsa ekle.
-- [ ] Invalid file feedback'i hem toast hem inline küçük açıklamayla desteklemeyi değerlendir.
+- [x] Ortak `UploadDropzone` component'i oluşturmayı değerlendir.
+- [x] Tüm dropzone alanını label/input ile gerçekten tıklanabilir yap.
+- [x] `sr-only` input + `peer-focus-visible` pattern'i kullan.
+- [x] Dropzone'a `onKeyDown` ile Enter/Space desteği gerekiyorsa ekle.
+- [x] Invalid file feedback'i hem toast hem inline küçük açıklamayla desteklemeyi değerlendir.
 
 Kabul kriterleri:
 
@@ -289,10 +289,10 @@ Dosyalar:
 
 Todo:
 
-- [ ] Eğer algoritma seçimi gerçekten sonuçları etkilemiyorsa Genetik/A* seçeneklerini gizle veya disabled yap.
-- [ ] Disabled kalacaksa "Yakında" rozeti veya tooltip ekle.
-- [ ] Home feature metnini mevcut özelliklere indir: ECTS limiti, çakışma toleransı, kilitli saatler, section seçimi, export/paylaşım.
-- [ ] Kullanıcıya vaat edilen her şeyin ekranda karşılığı olduğundan emin ol.
+- [x] Eğer algoritma seçimi gerçekten sonuçları etkilemiyorsa Genetik/A* seçeneklerini gizle veya disabled yap.
+- [x] Disabled kalacaksa "Yakında" rozeti veya tooltip ekle. Seçenekler tamamen gizlendiği için gerek kalmadı.
+- [x] Home feature metnini mevcut özelliklere indir: ECTS limiti, çakışma toleransı, kilitli saatler, section seçimi, export/paylaşım.
+- [x] Kullanıcıya vaat edilen her şeyin ekranda karşılığı olduğundan emin ol.
 
 Kabul kriterleri:
 
@@ -313,10 +313,10 @@ Dosyalar:
 
 Todo:
 
-- [ ] `TYPE_STYLES` içindeki sabit label'ları kaldır; label'ı `t.lecture`, `t.lab`, `t.problemSession` üzerinden üret.
-- [ ] Admin tarih formatında `lang === 'en' ? 'en-GB' : 'tr-TR'` gibi dil uyumlu locale kullan.
-- [ ] Türkçe modda "Scheduler" kelimesinin nerelerde kaldığını tara; gerekirse "Program" veya "Planlayıcı" ile değiştir.
-- [ ] İngilizce modda Türkçe placeholder/başlık sızıntısı olmadığını browser'da kontrol et.
+- [x] `TYPE_STYLES` içindeki sabit label'ları kaldır; label'ı `t.lecture`, `t.lab`, `t.problemSession` üzerinden üret.
+- [x] Admin tarih formatında `lang === 'en' ? 'en-GB' : 'tr-TR'` gibi dil uyumlu locale kullan.
+- [x] Türkçe modda "Scheduler" kelimesinin nerelerde kaldığını tara; gerekirse "Program" veya "Planlayıcı" ile değiştir.
+- [x] İngilizce modda Türkçe placeholder/başlık sızıntısı olmadığını browser'da kontrol et.
 
 Kabul kriterleri:
 
@@ -336,10 +336,10 @@ Dosyalar:
 
 Todo:
 
-- [ ] Takvim başlığına küçük Ders/Lab/PS lejantı ekle.
-- [ ] Course chip içinde çok küçük bir type ikonu veya kısa text göster: `D`, `Lab`, `PS` veya lucide icon.
-- [ ] Shared schedule ekranında aynı lejantı kullan.
-- [ ] Conflict state sadece kırmızı border ile kalmasın; gerekiyorsa tooltip/title veya küçük conflict indicator ekle.
+- [x] Takvim başlığına küçük Ders/Lab/PS lejantı ekle.
+- [x] Course chip içinde çok küçük bir type ikonu veya kısa text göster: `D`, `Lab`, `PS` veya lucide icon.
+- [x] Shared schedule ekranında aynı lejantı kullan.
+- [x] Conflict state sadece kırmızı border ile kalmasın; gerekiyorsa tooltip/title veya küçük conflict indicator ekle.
 
 Kabul kriterleri:
 
@@ -386,11 +386,11 @@ Dosyalar:
 
 Todo:
 
-- [ ] Desktop sidebar'ı `hidden lg:flex` yap.
-- [ ] Desktop tabloyu `hidden lg:block` yap.
-- [ ] Mobil/tablet günlük görünümü `lg:hidden` yap.
-- [ ] Course drawer açma butonunu `lg:hidden` yap.
-- [ ] 768x1024 ve 900x1024 viewport'ta kontrol et.
+- [x] Desktop sidebar'ı `hidden lg:flex` yap.
+- [x] Desktop tabloyu `hidden lg:block` yap.
+- [x] Mobil/tablet günlük görünümü `lg:hidden` yap.
+- [x] Course drawer açma butonunu `lg:hidden` yap.
+- [x] 768x1024 ve 900x1024 viewport'ta kontrol et.
 
 Kabul kriterleri:
 
@@ -419,11 +419,11 @@ Dosyalar:
 
 Todo:
 
-- [ ] Primary CTA: `Program oluştur` her zaman görünür ve sağda belirgin kalsın.
-- [ ] Secondary actions: clear locks, clear selection, export, stats, shortcuts, settings tek `Araçlar` veya `More` menüsüne taşınabilir.
-- [ ] Undo/redo kompakt kalabilir ama touch target en az 40px olmalı.
-- [ ] Counter görsel olarak daha sakin ve küçük tutulmalı.
-- [ ] Menü açık/kapalı state'leri `aria-expanded` ile belirtilmeli.
+- [x] Primary CTA: `Program oluştur` her zaman görünür ve sağda belirgin kalsın.
+- [x] Secondary actions: clear locks, clear selection, export, stats, shortcuts, settings tek `Araçlar` veya `More` menüsüne taşınabilir.
+- [x] Undo/redo kompakt kalabilir ama touch target en az 40px olmalı.
+- [x] Counter görsel olarak daha sakin ve küçük tutulmalı.
+- [x] Menü açık/kapalı state'leri `aria-expanded` ile belirtilmeli.
 
 Kabul kriterleri:
 
@@ -443,10 +443,10 @@ Dosya:
 
 Todo:
 
-- [ ] Mobil için hamburger veya kısa bottom/nav menu ekle.
-- [ ] `aria-expanded`, `aria-controls`, ESC ile kapanma ve outside-click davranışını düşün.
-- [ ] Admin linki role göre görünmeye devam etmeli.
-- [ ] Login/logout ve language switcher görünür kalmalı.
+- [x] Mobil için hamburger veya kısa bottom/nav menu ekle.
+- [x] `aria-expanded`, `aria-controls`, ESC ile kapanma ve outside-click davranışını düşün.
+- [x] Admin linki role göre görünmeye devam etmeli.
+- [x] Login/logout ve language switcher görünür kalmalı.
 
 Kabul kriterleri:
 
@@ -637,10 +637,10 @@ Dosyalar:
 
 Todo:
 
-- [ ] Hero altına veya hero içinde kompakt gerçek schedule preview ekle.
-- [ ] Örnek course chip'leri, küçük haftalık program veya "3 adım" yerine mini product surface göster.
-- [ ] Mobilde preview taşmadan akmalı.
-- [ ] Pazarlama metnini kısa tut; primary CTA görünür kalmalı.
+- [x] Hero altına veya hero içinde kompakt gerçek schedule preview ekle.
+- [x] Örnek course chip'leri, küçük haftalık program veya "3 adım" yerine mini product surface göster.
+- [x] Mobilde preview taşmadan akmalı.
+- [x] Pazarlama metnini kısa tut; primary CTA görünür kalmalı.
 
 Kabul kriterleri:
 
@@ -872,9 +872,9 @@ Browser kontrol:
 
 ## Batch 2: UI Honesty and i18n Consistency
 
-- [ ] 1.6 Yanıltıcı algoritma/copy düzeltmeleri
-- [ ] 1.7 TR/EN label ve tarih formatı
-- [ ] 1.8 Course type legend
+- [x] 1.6 Yanıltıcı algoritma/copy düzeltmeleri
+- [x] 1.7 TR/EN label ve tarih formatı
+- [x] 1.8 Course type legend
 
 Doğrulama:
 
@@ -891,8 +891,8 @@ Browser kontrol:
 
 ## Batch 3: Responsive Scheduler
 
-- [ ] 2.1 Tablet breakpoint
-- [ ] 2.2 Toolbar sadeleştirme
+- [x] 2.1 Tablet breakpoint
+- [x] 2.2 Toolbar sadeleştirme
 - [ ] 2.4 Settings/Stats popover
 
 Doğrulama:
@@ -933,7 +933,7 @@ Ek kontrol:
 
 ## Batch 5: Product Polish
 
-- [ ] 4.1 Home product preview
+- [x] 4.1 Home product preview
 - [ ] 3.4 AppHeader
 - [ ] 4.2 Branded error/not-found
 - [ ] 4.4 Share modal design-system cleanup
