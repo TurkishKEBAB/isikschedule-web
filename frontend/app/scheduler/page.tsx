@@ -8,7 +8,8 @@ import {
     Lock, Unlock, ChevronLeft, ChevronRight, X, RefreshCw,
     BookOpen, FlaskConical, PenTool, User as UserIcon, Clock,
     Upload as UploadIcon, FileSpreadsheet, Undo2, Redo2, Download,
-    Printer, CalendarDays, Keyboard, BarChart3, Sparkles, Share2, AlertTriangle
+    Printer, CalendarDays, Keyboard, BarChart3, Sparkles, Share2, AlertTriangle,
+    SlidersHorizontal
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useLanguage, LanguageSwitcher } from '../context/LanguageContext';
@@ -16,6 +17,12 @@ import { useToast } from '../components/Toast';
 import Modal from '../components/Modal';
 import ConfirmDialog from '../components/ConfirmDialog';
 import TeacherLink from '../components/TeacherLink';
+import { UploadDropzone } from '../components/UploadDropzone';
+import { ScheduleTypeLegend } from '../components/ScheduleTypeLegend';
+import { AuroraBackground } from '../components/AuroraBackground';
+import { GeneratedSchedulesView } from '../components/GeneratedSchedulesView';
+import { ScheduleHealthBar } from '../components/scheduler/ScheduleHealthBar';
+import { BuildPanel, type SelectedCourseItem } from '../components/scheduler/BuildPanel';
 import { API_BASE_URL } from '../lib/api';
 import {
     clearSchedulerSnapshot,
@@ -94,10 +101,10 @@ const KNOWN_ACADEMIC_UNITS = [
     'Türkçe Öğretimi Uygulama ve Araştırma Merkezi',
 ];
 
-const TYPE_STYLES: Record<string, { bg: string; border: string; label: string; icon: React.ReactNode }> = {
-    lecture: { bg: 'bg-lecture/90', border: 'border-lecture/30', label: 'Ders', icon: <BookOpen className="w-3 h-3" /> },
-    lab: { bg: 'bg-lab/90', border: 'border-lab/30', label: 'Lab', icon: <FlaskConical className="w-3 h-3" /> },
-    ps: { bg: 'bg-ps/90', border: 'border-ps/30', label: 'PS', icon: <PenTool className="w-3 h-3" /> },
+const TYPE_STYLES: Record<string, { bg: string; border: string; icon: React.ReactNode }> = {
+    lecture: { bg: 'bg-lecture/90', border: 'border-lecture/30', icon: <BookOpen className="w-3 h-3" /> },
+    lab: { bg: 'bg-lab/90', border: 'border-lab/30', icon: <FlaskConical className="w-3 h-3" /> },
+    ps: { bg: 'bg-ps/90', border: 'border-ps/30', icon: <PenTool className="w-3 h-3" /> },
 };
 
 function getSlotKey(day: string, period: number) {
@@ -254,6 +261,59 @@ function pickBestAlternative(
         .sort((left, right) => left.conflictCount - right.conflictCount)[0]?.alternative ?? null;
 }
 
+/**
+ * Given a target set of locked slots, swap or drop the active course sections that now
+ * conflict with them. Mirrors the per-slot reconciliation inside `toggleLock`, but works
+ * for a whole batch of newly-locked slots at once (used by drag-to-paint).
+ */
+function reconcileCoursesToLocks(
+    courses: Course[],
+    allCourses: Course[],
+    nextLockedSlots: Set<string>,
+): { nextCourses: Course[]; switched: string[]; removed: string[] } {
+    let nextCourses = [...courses];
+    const handled = new Set<string>();
+    const switched: string[] = [];
+    const removed: string[] = [];
+
+    courses.forEach((course) => {
+        if (!courseConflictsWithLocks(course, nextLockedSlots)) return;
+
+        const componentKey = `${course.main_code}:${course.type}`;
+        if (handled.has(componentKey)) return;
+        handled.add(componentKey);
+
+        const alternatives = allCourses.filter((alternative) =>
+            alternative.main_code === course.main_code &&
+            alternative.type === course.type &&
+            alternative.code !== course.code &&
+            !courseConflictsWithLocks(alternative, nextLockedSlots)
+        );
+
+        if (!alternatives.length) {
+            nextCourses = nextCourses.filter((activeCourse) => activeCourse.main_code !== course.main_code);
+            removed.push(course.main_code);
+            return;
+        }
+
+        const replacement = pickBestAlternative(alternatives, nextCourses, course);
+        if (!replacement) {
+            nextCourses = nextCourses.filter((activeCourse) => activeCourse.main_code !== course.main_code);
+            removed.push(course.main_code);
+            return;
+        }
+
+        nextCourses = nextCourses.map((activeCourse) =>
+            activeCourse.main_code === course.main_code && activeCourse.type === course.type
+                ? replacement
+                : activeCourse
+        );
+        switched.push(`${course.code} -> ${replacement.code}`);
+    });
+
+    return { nextCourses, switched, removed };
+}
+
 async function parseErrorMessage(response: Response, fallback: string) {
     try {
         const data = await response.json();
@@ -328,6 +388,8 @@ function SchedulerContent() {
         Thursday: t.thu,
         Friday: t.fri,
     };
+    const getCourseTypeLabel = (type: string) =>
+        type === 'lab' ? t.lab : type === 'ps' ? t.problemSession : t.lecture;
 
     const [allCourses, setAllCourses] = useState<Course[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -335,7 +397,6 @@ function SchedulerContent() {
     const [showUploadModal, setShowUploadModal] = useState(false);
     const [showCourseDrawer, setShowCourseDrawer] = useState(false);
     const [activeMobileDay, setActiveMobileDay] = useState(DAYS[0]);
-    const [isDragging, setIsDragging] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [hasInitialized, setHasInitialized] = useState(false);
     const [fileId, setFileId] = useState<string | null>(null);
@@ -354,7 +415,6 @@ function SchedulerContent() {
     const [selectedPrefix, setSelectedPrefix] = useState('all');
     const [isGenerating, setIsGenerating] = useState(false);
 
-    const [algorithm, setAlgorithm] = useState(DEFAULT_ALGORITHM);
     const [maxEcts, setMaxEcts] = useState(DEFAULT_MAX_ECTS);
     const [maxConflicts, setMaxConflicts] = useState(DEFAULT_MAX_CONFLICTS);
 
@@ -364,12 +424,15 @@ function SchedulerContent() {
     const [confirmKind, setConfirmKind] = useState<null | 'selection' | 'locks'>(null);
     const [showShortcuts, setShowShortcuts] = useState(false);
     const [showExportMenu, setShowExportMenu] = useState(false);
+    const [showToolsMenu, setShowToolsMenu] = useState(false);
     const [showShareModal, setShowShareModal] = useState(false);
     const [shareCode, setShareCode] = useState<string | null>(null);
     const [isSharing, setIsSharing] = useState(false);
     const [showStats, setShowStats] = useState(false);
+    const [showResults, setShowResults] = useState(false);
     const searchInputRef = useRef<HTMLInputElement | null>(null);
     const exportMenuRef = useRef<HTMLDivElement | null>(null);
+    const toolsMenuRef = useRef<HTMLDivElement | null>(null);
 
     const invalidateSchedules = () => {
         setSchedules([]);
@@ -419,7 +482,6 @@ function SchedulerContent() {
 
             if (!isMounted) return;
 
-            setAlgorithm(savedSnapshot?.algorithm || DEFAULT_ALGORITHM);
             setMaxEcts(savedSnapshot?.maxEcts || DEFAULT_MAX_ECTS);
             setMaxConflicts(savedSnapshot?.maxConflicts || DEFAULT_MAX_CONFLICTS);
 
@@ -503,11 +565,11 @@ function SchedulerContent() {
             selectedCourseCodes: activeCourses.map((course) => course.code),
             selectedMainCodes: Array.from(new Set(activeCourses.map((course) => course.main_code))),
             lockedSlots: Array.from(lockedSlots),
-            algorithm,
+            algorithm: DEFAULT_ALGORITHM,
             maxEcts,
             maxConflicts,
         });
-    }, [hasInitialized, fileId, sourceLabel, activeCourses, lockedSlots, algorithm, maxEcts, maxConflicts]);
+    }, [hasInitialized, fileId, sourceLabel, activeCourses, lockedSlots, maxEcts, maxConflicts]);
 
     useEffect(() => {
         if (!selectedCourse) return;
@@ -562,13 +624,6 @@ function SchedulerContent() {
         } finally {
             setIsUploading(false);
         }
-    };
-
-    const handleDrop = (event: React.DragEvent) => {
-        event.preventDefault();
-        setIsDragging(false);
-        const file = event.dataTransfer.files[0];
-        if (file) handleUpload(file);
     };
 
     const isCourseSelected = (mainCode: string) => activeCourses.some((course) => course.main_code === mainCode);
@@ -819,6 +874,73 @@ function SchedulerContent() {
         updateDraft(nextCourses, nextLockedSlots);
     };
 
+    // --- Drag-to-paint busy (locked) slots on the grid ---
+    const paintModeRef = useRef<null | 'lock' | 'unlock'>(null);
+    const paintedRef = useRef<Set<string>>(new Set());
+    const [, bumpPaint] = useState(0);
+
+    const isSlotPreviewLocked = (day: string, period: number) => {
+        const key = getSlotKey(day, period);
+        if (paintedRef.current.has(key)) return paintModeRef.current === 'lock';
+        return lockedSlots.has(key);
+    };
+
+    const handlePaintStart = (event: React.PointerEvent, day: string, period: number, occupied: boolean) => {
+        // Let clicks on the lock button / course blocks behave normally; only start
+        // painting from an empty cell so a stray click can't drop an occupied section.
+        if (event.button !== 0) return;
+        if ((event.target as HTMLElement).closest('button')) return;
+        if (occupied) return;
+        event.preventDefault();
+        const key = getSlotKey(day, period);
+        paintModeRef.current = lockedSlots.has(key) ? 'unlock' : 'lock';
+        paintedRef.current = new Set([key]);
+        bumpPaint((value) => value + 1);
+    };
+
+    const handlePaintEnter = (day: string, period: number) => {
+        if (!paintModeRef.current) return;
+        paintedRef.current.add(getSlotKey(day, period));
+        bumpPaint((value) => value + 1);
+    };
+
+    const commitPaint = useCallback(() => {
+        const mode = paintModeRef.current;
+        const painted = paintedRef.current;
+        paintModeRef.current = null;
+        paintedRef.current = new Set();
+        if (!mode || painted.size === 0) return;
+
+        const nextLockedSlots = new Set(lockedSlots);
+        painted.forEach((key) => {
+            if (mode === 'lock') nextLockedSlots.add(key);
+            else nextLockedSlots.delete(key);
+        });
+
+        if (mode === 'unlock') {
+            updateDraft(activeCourses, nextLockedSlots);
+        } else {
+            const { nextCourses, switched, removed } = reconcileCoursesToLocks(activeCourses, allCourses, nextLockedSlots);
+            if (switched.length > 0) toastInfo(`${t.sectionChanged}: ${switched.join(', ')}`);
+            if (removed.length > 0) toastWarning(`${t.removedNoAlternative}: ${Array.from(new Set(removed)).join(', ')}`);
+            updateDraft(nextCourses, nextLockedSlots);
+        }
+        bumpPaint((value) => value + 1);
+        // updateDraft is intentionally omitted: it is recreated each render and closes over the
+        // same activeCourses/lockedSlots already listed here, so the captured copy stays correct.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [lockedSlots, activeCourses, allCourses, t.sectionChanged, t.removedNoAlternative, toastInfo, toastWarning]);
+
+    useEffect(() => {
+        const onPointerUp = () => commitPaint();
+        window.addEventListener('pointerup', onPointerUp);
+        window.addEventListener('pointercancel', onPointerUp);
+        return () => {
+            window.removeEventListener('pointerup', onPointerUp);
+            window.removeEventListener('pointercancel', onPointerUp);
+        };
+    }, [commitPaint]);
+
     const sectionHasLockConflict = (course: Course) => courseConflictsWithLocks(course, lockedSlots);
 
     const performClearLocks = () => {
@@ -938,6 +1060,49 @@ function SchedulerContent() {
         }
     };
 
+    const createShareCode = async (): Promise<string | null> => {
+        if (!activeCourses.length) {
+            toastWarning(t.exportNothingToExport);
+            return null;
+        }
+        setIsSharing(true);
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/schedules/share`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ courses: activeCourses }),
+            });
+            if (!response.ok) throw new Error(t.schedulerShareFailed);
+            const data = await response.json();
+            setShareCode(data.share_code);
+            return data.share_code as string;
+        } catch (error) {
+            console.error(error);
+            toastError(t.schedulerShareFailed);
+            return null;
+        } finally {
+            setIsSharing(false);
+        }
+    };
+
+    const handleResultsShare = async () => {
+        await createShareCode();
+    };
+
+    const handleResultsCopyLink = async () => {
+        const code = shareCode || (await createShareCode());
+        if (code && typeof window !== 'undefined') {
+            await navigator.clipboard.writeText(`${window.location.origin}/shared/${code}`);
+            toastSuccess(t.resultsCopied);
+        }
+    };
+
+    const handleResultsSelect = (idx: number) => {
+        const nextCourses = dedupeCourses(schedules[idx]?.courses || []);
+        setActiveCourses(nextCourses);
+        setCurrentScheduleIdx(idx);
+    };
+
     const generateSchedules = async () => {
         if (!fileId || activeCourses.length === 0) {
             toastWarning(t.pleaseSelectCourse);
@@ -958,7 +1123,7 @@ function SchedulerContent() {
                 body: JSON.stringify({
                     file_id: fileId,
                     selected_main_codes: Array.from(new Set(activeCourses.map((course) => course.main_code))),
-                    algorithm,
+                    algorithm: DEFAULT_ALGORITHM,
                     params: {
                         max_ects: maxEcts,
                         max_conflicts: maxConflicts,
@@ -991,6 +1156,7 @@ function SchedulerContent() {
                             setCurrentScheduleIdx(0);
                             pushHistory(firstCourses, lockedSlots);
                             toastSuccess(`${validSchedules.length} ${t.schedulerGeneratedCount}`);
+                            setShowResults(true);
                         } else {
                             toastWarning(t.backendConflict);
                         }
@@ -1059,6 +1225,14 @@ function SchedulerContent() {
     }, new Map<string, CourseListItem[]>());
     const totalEcts = activeCourses.reduce((sum, course) => sum + (course.ects || 0), 0);
     const selectedCount = new Set(activeCourses.map((course) => course.main_code)).size;
+    const draftConflicts = countCourseConflicts(activeCourses);
+    const selectedItems = useMemo<SelectedCourseItem[]>(() => {
+        const byMain = new Map<string, number>();
+        activeCourses.forEach((course) => {
+            byMain.set(course.main_code, (byMain.get(course.main_code) || 0) + (course.ects || 0));
+        });
+        return Array.from(byMain.entries()).map(([mainCode, ects]) => ({ mainCode, ects }));
+    }, [activeCourses]);
 
     useEffect(() => {
         if (selectedPrefix === 'all') return;
@@ -1090,6 +1264,24 @@ function SchedulerContent() {
     }, [showExportMenu]);
 
     useEffect(() => {
+        if (!showToolsMenu) return;
+        const handleClickOutside = (event: MouseEvent) => {
+            if (!toolsMenuRef.current) return;
+            if (toolsMenuRef.current.contains(event.target as Node)) return;
+            setShowToolsMenu(false);
+        };
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') setShowToolsMenu(false);
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        document.addEventListener('keydown', handleEscape);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('keydown', handleEscape);
+        };
+    }, [showToolsMenu]);
+
+    useEffect(() => {
         const isEditableTarget = (target: EventTarget | null) => {
             if (!(target instanceof HTMLElement)) return false;
             const tag = target.tagName;
@@ -1114,6 +1306,7 @@ function SchedulerContent() {
             }
 
             if (isEditableTarget(event.target)) return;
+            if (showResults) return;
 
             if (key === '?' || (event.shiftKey && key === '/')) {
                 event.preventDefault();
@@ -1149,14 +1342,18 @@ function SchedulerContent() {
 
             if (key === 'e' || key === 'E') {
                 event.preventDefault();
-                setShowExportMenu((prev) => !prev);
+                if (window.innerWidth < 1536) {
+                    setShowToolsMenu((prev) => !prev);
+                } else {
+                    setShowExportMenu((prev) => !prev);
+                }
             }
         };
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [undo, redo, schedules.length, currentScheduleIdx, activeCourses.length, isGenerating]);
+    }, [undo, redo, schedules.length, currentScheduleIdx, activeCourses.length, isGenerating, showResults]);
 
     const prevSchedule = () => {
         if (currentScheduleIdx <= 0) return;
@@ -1174,8 +1371,9 @@ function SchedulerContent() {
 
     if (isLoading) {
         return (
-            <div className="min-h-screen bg-surface-900 flex items-center justify-center px-6">
-                <div className="text-center">
+            <div className="relative min-h-screen bg-[#0B1020] flex items-center justify-center px-6">
+                <AuroraBackground variant="absolute" className="opacity-70" />
+                <div className="relative z-10 text-center">
                     <div className="w-12 h-12 rounded-full border-2 border-isik-blue-lighter/20 border-t-isik-blue-lighter animate-spin mx-auto mb-4" />
                     <p className="text-sm text-slate-400">{t.loadingCourses}</p>
                 </div>
@@ -1184,24 +1382,25 @@ function SchedulerContent() {
     }
 
     return (
-        <div className="h-screen flex flex-col bg-surface-900">
-            <header className="flex-shrink-0 bg-surface-800/80 backdrop-blur-xl border-b border-white/5 px-4 py-2.5 no-print">
-                <div className="max-w-[1800px] mx-auto flex items-center justify-between gap-3">
-                    <Link href="/" className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-isik-blue to-isik-blue-lighter flex items-center justify-center">
+        <div className="relative h-screen flex flex-col bg-[#0B1020]">
+            <AuroraBackground variant="absolute" vignette={false} className="opacity-75" />
+            <header className="relative z-40 flex-shrink-0 bg-surface-800/80 backdrop-blur-xl border-b border-white/5 px-3 sm:px-4 py-2.5 no-print">
+                <div className="max-w-[1800px] mx-auto flex items-center gap-2 sm:gap-3">
+                    <Link href="/" className="flex items-center gap-2 shrink-0" aria-label="IşıkSchedule">
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-isik-blue to-isik-blue-lighter flex items-center justify-center shadow-lg shadow-blue-500/10">
                             <GraduationCap className="w-4 h-4 text-white" />
                         </div>
-                        <div className="hidden sm:block">
+                        <div className="hidden lg:block">
                             <span className="block text-base font-bold text-white">IşıkSchedule</span>
                             {sourceLabel && (
-                                <span className="block text-[11px] text-slate-400">
+                                <span className="block max-w-40 truncate text-[11px] text-slate-400">
                                     {t.activeSource}: {sourceLabel}
                                 </span>
                             )}
                         </div>
                     </Link>
 
-                    <div className="flex items-center gap-2 flex-wrap justify-end no-print">
+                    <div className="ml-auto flex min-w-0 items-center justify-end gap-1.5 sm:gap-2">
                         <LanguageSwitcher />
 
                         <div className="flex items-center gap-0.5 bg-surface-700/40 rounded-lg border border-white/5 p-0.5">
@@ -1210,7 +1409,7 @@ function SchedulerContent() {
                                 onClick={undo}
                                 disabled={!canUndo}
                                 aria-label={t.undo}
-                                className="p-1.5 rounded-md text-slate-400 hover:text-slate-100 hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                className="inline-flex h-10 w-10 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-white/5 hover:text-slate-100 disabled:cursor-not-allowed disabled:opacity-30 sm:h-8 sm:w-8"
                                 title={`${t.undo} (Ctrl+Z)`}
                             >
                                 <Undo2 className="w-3.5 h-3.5" />
@@ -1220,108 +1419,120 @@ function SchedulerContent() {
                                 onClick={redo}
                                 disabled={!canRedo}
                                 aria-label={t.redo}
-                                className="p-1.5 rounded-md text-slate-400 hover:text-slate-100 hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                className="inline-flex h-10 w-10 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-white/5 hover:text-slate-100 disabled:cursor-not-allowed disabled:opacity-30 sm:h-8 sm:w-8"
                                 title={`${t.redo} (Ctrl+Y)`}
                             >
                                 <Redo2 className="w-3.5 h-3.5" />
                             </button>
                         </div>
 
-                        <button type="button" onClick={() => setShowUploadModal(true)} className="btn-ghost !py-1.5 !text-xs" aria-label={t.changeFile}>
-                            <FolderOpen className="w-3.5 h-3.5" />
-                            <span className="hidden sm:inline">{t.changeFile}</span>
-                        </button>
-
-                        <button type="button" onClick={clearLocks} disabled={!lockedSlots.size} className="btn-ghost !py-1.5 !text-xs" aria-label={t.clearLocks}>
-                            <RefreshCw className="w-3.5 h-3.5" />
-                            <span className="hidden sm:inline">{t.clearLocks}</span>
-                        </button>
-
-                        <button type="button" onClick={clearSelection} disabled={!activeCourses.length} className="btn-ghost !py-1.5 !text-xs" aria-label={t.clearSelection}>
-                            <X className="w-3.5 h-3.5" />
-                            <span className="hidden sm:inline">{t.clearSelection}</span>
-                        </button>
-
-                        <div className="relative" ref={exportMenuRef}>
-                            <button
-                                type="button"
-                                onClick={() => setShowExportMenu((prev) => !prev)}
-                                disabled={!activeCourses.length}
-                                aria-label={t.exportMenu}
-                                className={`btn-ghost !py-1.5 !text-xs ${showExportMenu ? '!bg-isik-blue-lighter/10 !text-isik-blue-lighter' : ''}`}
-                                title={`${t.exportMenu} (E)`}
-                            >
-                                <Download className="w-3.5 h-3.5" />
-                                <span className="hidden sm:inline">{t.exportMenu}</span>
+                        <div className="hidden 2xl:flex items-center gap-1">
+                            <button type="button" onClick={() => setShowUploadModal(true)} className="btn-ghost !py-1.5 !text-xs" aria-label={t.changeFile}>
+                                <FolderOpen className="w-3.5 h-3.5" />
+                                {t.changeFile}
                             </button>
 
-                            {showExportMenu && (
-                                <div className="absolute right-0 top-full mt-2 w-60 glass-panel p-1 shadow-2xl shadow-black/40 z-40 animate-fade-in">
-                                    <button
-                                        type="button"
-                                        onClick={handleExportIcs}
-                                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-200 hover:bg-white/5 transition-colors"
-                                    >
-                                        <CalendarDays className="w-3.5 h-3.5 text-isik-blue-lighter" />
-                                        {t.exportIcal}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={handlePrint}
-                                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-200 hover:bg-white/5 transition-colors"
-                                    >
-                                        <Printer className="w-3.5 h-3.5 text-emerald-400" />
-                                        {t.exportPrint}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={handleShareSchedule}
-                                        disabled={isSharing}
-                                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-200 hover:bg-white/5 transition-colors"
-                                    >
-                                        {isSharing ? (
-                                            <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400" />
-                                        ) : (
-                                            <Share2 className="w-3.5 h-3.5 text-blue-400" />
-                                        )}
-                                        {t.schedulerShareAction}
-                                    </button>
+                            <button type="button" onClick={clearLocks} disabled={!lockedSlots.size} className="btn-ghost !py-1.5 !text-xs" aria-label={t.clearLocks}>
+                                <RefreshCw className="w-3.5 h-3.5" />
+                                {t.clearLocks}
+                            </button>
+
+                            <button type="button" onClick={clearSelection} disabled={!activeCourses.length} className="btn-ghost !py-1.5 !text-xs" aria-label={t.clearSelection}>
+                                <X className="w-3.5 h-3.5" />
+                                {t.clearSelection}
+                            </button>
+
+                            <div className="relative" ref={exportMenuRef}>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowExportMenu((prev) => !prev)}
+                                    disabled={!activeCourses.length}
+                                    aria-label={t.exportMenu}
+                                    aria-expanded={showExportMenu}
+                                    className={`btn-ghost !py-1.5 !text-xs ${showExportMenu ? '!bg-isik-blue-lighter/10 !text-isik-blue-lighter' : ''}`}
+                                    title={`${t.exportMenu} (E)`}
+                                >
+                                    <Download className="w-3.5 h-3.5" />
+                                    {t.exportMenu}
+                                </button>
+
+                                {showExportMenu && (
+                                    <div className="absolute right-0 top-full mt-2 w-60 glass-panel p-1 shadow-2xl shadow-black/40 z-40 animate-fade-in">
+                                        <button type="button" onClick={handleExportIcs} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-200 hover:bg-white/5 transition-colors">
+                                            <CalendarDays className="w-3.5 h-3.5 text-isik-blue-lighter" />
+                                            {t.exportIcal}
+                                        </button>
+                                        <button type="button" onClick={handlePrint} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-200 hover:bg-white/5 transition-colors">
+                                            <Printer className="w-3.5 h-3.5 text-emerald-400" />
+                                            {t.exportPrint}
+                                        </button>
+                                        <button type="button" onClick={handleShareSchedule} disabled={isSharing} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-200 hover:bg-white/5 transition-colors">
+                                            {isSharing ? <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400" /> : <Share2 className="w-3.5 h-3.5 text-blue-400" />}
+                                            {t.schedulerShareAction}
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => setShowStats((prev) => !prev)}
+                                aria-label={t.stats}
+                                className={`btn-ghost !py-1.5 !text-xs ${showStats ? '!bg-isik-blue-lighter/10 !text-isik-blue-lighter' : ''}`}
+                            >
+                                <BarChart3 className="w-3.5 h-3.5" />
+                                {t.stats}
+                            </button>
+
+                            <button type="button" onClick={() => setShowShortcuts(true)} aria-label={t.keyboardShortcuts} className="btn-ghost !p-2" title={`${t.keyboardShortcuts} (?)`}>
+                                <Keyboard className="w-3.5 h-3.5" />
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => setShowSettings(!showSettings)}
+                                aria-label={t.settings}
+                                className={`btn-ghost !py-1.5 !text-xs ${showSettings ? '!bg-isik-gold/10 !text-isik-gold' : ''}`}
+                            >
+                                <Settings className="w-3.5 h-3.5" />
+                                {t.settings}
+                            </button>
+                        </div>
+
+                        <div className="relative 2xl:hidden" ref={toolsMenuRef}>
+                            <button
+                                type="button"
+                                onClick={() => setShowToolsMenu((prev) => !prev)}
+                                className={`btn-secondary !p-2 sm:!px-3 sm:!py-2 !text-xs ${showToolsMenu ? '!border-isik-blue-lighter/40 !text-white' : ''}`}
+                                aria-label={t.openTools}
+                                aria-expanded={showToolsMenu}
+                                aria-controls="scheduler-tools-menu"
+                            >
+                                <SlidersHorizontal className="w-3.5 h-3.5" />
+                                <span className="hidden sm:inline">{t.tools}</span>
+                            </button>
+
+                            {showToolsMenu && (
+                                <div id="scheduler-tools-menu" className="absolute right-0 top-full mt-2 w-72 glass-panel p-2 shadow-2xl shadow-black/40 z-50 animate-fade-in">
+                                    <div className="grid grid-cols-2 gap-1">
+                                        <ToolMenuButton icon={<FolderOpen className="w-4 h-4 text-blue-300" />} label={t.changeFile} onClick={() => { setShowUploadModal(true); setShowToolsMenu(false); }} />
+                                        <ToolMenuButton icon={<Settings className="w-4 h-4 text-amber-300" />} label={t.settings} onClick={() => { setShowSettings((prev) => !prev); setShowToolsMenu(false); }} />
+                                        <ToolMenuButton icon={<BarChart3 className="w-4 h-4 text-violet-300" />} label={t.stats} onClick={() => { setShowStats((prev) => !prev); setShowToolsMenu(false); }} />
+                                        <ToolMenuButton icon={<Keyboard className="w-4 h-4 text-slate-300" />} label={t.keyboardShortcuts} onClick={() => { setShowShortcuts(true); setShowToolsMenu(false); }} />
+                                        <ToolMenuButton icon={<RefreshCw className="w-4 h-4 text-emerald-300" />} label={t.clearLocks} onClick={() => { clearLocks(); setShowToolsMenu(false); }} disabled={!lockedSlots.size} />
+                                        <ToolMenuButton icon={<X className="w-4 h-4 text-red-300" />} label={t.clearSelection} onClick={() => { clearSelection(); setShowToolsMenu(false); }} disabled={!activeCourses.length} />
+                                    </div>
+
+                                    <div className="my-2 border-t border-white/5" />
+                                    <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">{t.exportMenu}</p>
+                                    <ToolMenuButton icon={<CalendarDays className="w-4 h-4 text-isik-blue-lighter" />} label={t.exportIcal} onClick={() => { handleExportIcs(); setShowToolsMenu(false); }} disabled={!activeCourses.length} fullWidth />
+                                    <ToolMenuButton icon={<Printer className="w-4 h-4 text-emerald-400" />} label={t.exportPrint} onClick={() => { handlePrint(); setShowToolsMenu(false); }} disabled={!activeCourses.length} fullWidth />
+                                    <ToolMenuButton icon={isSharing ? <Loader2 className="w-4 h-4 animate-spin text-blue-400" /> : <Share2 className="w-4 h-4 text-blue-400" />} label={t.schedulerShareAction} onClick={() => { void handleShareSchedule(); setShowToolsMenu(false); }} disabled={!activeCourses.length || isSharing} fullWidth />
                                 </div>
                             )}
                         </div>
 
-                        <button
-                            type="button"
-                            onClick={() => setShowStats((prev) => !prev)}
-                            aria-label={t.stats}
-                            className={`btn-ghost !py-1.5 !text-xs ${showStats ? '!bg-isik-blue-lighter/10 !text-isik-blue-lighter' : ''}`}
-                            title={t.stats}
-                        >
-                            <BarChart3 className="w-3.5 h-3.5" />
-                            <span className="hidden sm:inline">{t.stats}</span>
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={() => setShowShortcuts(true)}
-                            aria-label={t.keyboardShortcuts}
-                            className="btn-ghost !py-1.5 !text-xs"
-                            title={`${t.keyboardShortcuts} (?)`}
-                        >
-                            <Keyboard className="w-3.5 h-3.5" />
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={() => setShowSettings(!showSettings)}
-                            aria-label={t.settings}
-                            className={`btn-ghost !py-1.5 !text-xs ${showSettings ? '!bg-isik-gold/10 !text-isik-gold' : ''}`}
-                        >
-                            <Settings className="w-3.5 h-3.5" />
-                            <span className="hidden sm:inline">{t.settings}</span>
-                        </button>
-
-                        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-700/50 border border-white/5 text-xs">
+                        <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-700/50 border border-white/5 text-xs">
                             <span className="font-bold text-white">{selectedCount}</span>
                             <span className="text-slate-400">{t.courses}</span>
                             <span className="text-slate-400 mx-0.5">·</span>
@@ -1333,20 +1544,37 @@ function SchedulerContent() {
                             type="button"
                             onClick={generateSchedules}
                             disabled={isGenerating || activeCourses.length === 0}
-                            className="btn-primary !py-1.5 !text-xs"
+                            className="btn-primary magnetic shrink-0 !px-3 sm:!px-4 !py-2 !text-xs"
                         >
                             {isGenerating ? (
-                                <><Loader2 className="w-3.5 h-3.5 animate-spin" />{t.creating}</>
+                                <><Loader2 className="w-3.5 h-3.5 animate-spin" /><span className="hidden sm:inline">{t.creating}</span></>
                             ) : (
-                                <><Rocket className="w-3.5 h-3.5" />{t.createSchedule}</>
+                                <><Rocket className="w-3.5 h-3.5" /><span className="hidden sm:inline">{t.createSchedule}</span><span className="sm:hidden">{t.generateShort}</span></>
                             )}
                         </button>
                     </div>
                 </div>
             </header>
 
+            {showResults && schedules.length > 0 && (
+                <GeneratedSchedulesView
+                    schedules={schedules}
+                    currentIdx={currentScheduleIdx}
+                    lockedSlots={lockedSlots}
+                    sourceLabel={sourceLabel}
+                    shareUrl={shareCode ? `${typeof window !== 'undefined' ? window.location.origin : ''}/shared/${shareCode}` : null}
+                    isSharing={isSharing}
+                    onSelect={handleResultsSelect}
+                    onClose={() => setShowResults(false)}
+                    onExportIcs={handleExportIcs}
+                    onPrint={handlePrint}
+                    onShare={handleResultsShare}
+                    onCopyLink={handleResultsCopyLink}
+                />
+            )}
+
             <div className="flex-1 flex overflow-hidden">
-                <div className="hidden md:flex w-80 flex-shrink-0 bg-surface-800/50 border-r border-white/5 flex-col no-print">
+                <div className="hidden lg:flex w-80 flex-shrink-0 bg-surface-800/50 border-r border-white/5 flex-col no-print">
                     <div className="p-3 border-b border-white/5 space-y-3">
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
@@ -1548,8 +1776,9 @@ function SchedulerContent() {
                     </div>
                 </div>
 
-                <div className="flex-1 p-3 md:p-4 overflow-auto print-area">
-                    <div className="md:hidden no-print mb-3">
+                <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+                <div className="flex-1 overflow-auto p-3 md:p-4 print-area">
+                    <div className="lg:hidden no-print mb-3">
                         <button
                             type="button"
                             onClick={() => setShowCourseDrawer(true)}
@@ -1565,7 +1794,7 @@ function SchedulerContent() {
                         </button>
                     </div>
                     <div className="glass-panel overflow-hidden min-h-full">
-                        <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between gap-4">
+                        <div className="px-4 py-3 border-b border-white/5 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
                             <div>
                                 <h3 className="text-sm font-semibold text-white">
                                     {schedules.length > 0 ? `${t.program} #${currentScheduleIdx + 1}` : t.weeklySchedule}
@@ -1579,27 +1808,25 @@ function SchedulerContent() {
                                 </p>
                             </div>
 
-                            {schedules.length > 0 && (
-                                <div className="flex items-center gap-2">
+                            <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto sm:justify-end">
+                                <ScheduleTypeLegend
+                                    lectureLabel={t.lecture}
+                                    labLabel={t.lab}
+                                    problemSessionLabel={t.problemSession}
+                                />
+
+                                {schedules.length > 0 && (
                                     <button
-                                        onClick={prevSchedule}
-                                        disabled={currentScheduleIdx === 0}
-                                        className="p-1 rounded-md bg-surface-700/50 hover:bg-surface-600/50 disabled:opacity-30 transition-all"
+                                        type="button"
+                                        onClick={() => setShowResults(true)}
+                                        className="magnetic inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-isik-blue to-isik-blue-lighter px-3 py-1.5 text-xs font-semibold text-white shadow-lg shadow-blue-500/20"
                                     >
-                                        <ChevronLeft className="w-4 h-4" />
+                                        <Sparkles className="w-3.5 h-3.5" />
+                                        {t.resultsViewAll}
+                                        <span className="rounded bg-white/20 px-1.5 py-0.5 text-[10px] tabular-nums">{schedules.length}</span>
                                     </button>
-                                    <span className="text-xs text-slate-400 tabular-nums min-w-[50px] text-center">
-                                        {currentScheduleIdx + 1} / {schedules.length}
-                                    </span>
-                                    <button
-                                        onClick={nextSchedule}
-                                        disabled={currentScheduleIdx === schedules.length - 1}
-                                        className="p-1 rounded-md bg-surface-700/50 hover:bg-surface-600/50 disabled:opacity-30 transition-all"
-                                    >
-                                        <ChevronRight className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            )}
+                                )}
+                            </div>
                         </div>
 
                         {sourceMissing && allCourses.length === 0 ? (
@@ -1616,7 +1843,7 @@ function SchedulerContent() {
                             </div>
                         ) : (
                             <>
-                                <div className="hidden md:block">
+                                <div className="hidden lg:block">
                                     <table className="w-full border-collapse">
                                         <thead>
                                             <tr>
@@ -1639,12 +1866,15 @@ function SchedulerContent() {
                                                     {DAYS.map((day) => {
                                                         const courses = grid[day]?.[period] || [];
                                                         const hasConflict = courses.length > 1;
-                                                        const isLocked = lockedSlots.has(getSlotKey(day, period));
+                                                        const occupied = courses.length > 0;
+                                                        const isLocked = isSlotPreviewLocked(day, period);
 
                                                         return (
                                                             <td
                                                                 key={`${day}-${period}`}
-                                                                className={`p-0.5 border-r border-white/[0.03] relative group ${isLocked ? 'bg-red-500/5' : ''}`}
+                                                                onPointerDown={(event) => handlePaintStart(event, day, period, occupied)}
+                                                                onPointerEnter={() => handlePaintEnter(day, period)}
+                                                                className={`p-0.5 border-r border-white/[0.03] relative group select-none ${occupied ? '' : 'cursor-cell'} ${isLocked ? 'bg-red-500/5' : ''}`}
                                                                 style={{ height: '52px' }}
                                                             >
                                                                 <button
@@ -1654,7 +1884,7 @@ function SchedulerContent() {
                                                                     className={`absolute top-0.5 right-0.5 z-10 p-0.5 rounded transition-all ${
                                                                         isLocked
                                                                             ? 'text-red-400 opacity-100'
-                                                                            : 'text-slate-400 opacity-60 md:opacity-0 md:group-hover:opacity-100 hover:text-slate-300'
+                                                                            : 'text-slate-400 opacity-60 lg:opacity-0 lg:group-hover:opacity-100 hover:text-slate-300'
                                                                     }`}
                                                                     title={isLocked ? t.unlock : t.lock}
                                                                 >
@@ -1673,9 +1903,13 @@ function SchedulerContent() {
                                                                                 type="button"
                                                                                 key={course.code}
                                                                                 onClick={() => setSelectedCourse(course)}
-                                                                                className={`block w-full text-left p-1 rounded-md text-[10px] cursor-pointer transition-all hover:brightness-110 border ${hasConflict ? 'border-red-500/50' : style.border} ${style.bg} mb-0.5`}
+                                                                                className={`cell-enter block w-full text-left p-1 rounded-md text-[10px] cursor-pointer transition-all hover:brightness-110 border ${hasConflict ? 'border-red-500/50' : style.border} ${style.bg} mb-0.5`}
                                                                             >
-                                                                                <span className="block font-semibold text-white truncate">{course.code}</span>
+                                                                                <span className="flex items-center gap-1 font-semibold text-white truncate">
+                                                                                    {style.icon}
+                                                                                    <span className="truncate">{course.code}</span>
+                                                                                    {hasConflict && <AlertTriangle className="ml-auto h-3 w-3 shrink-0 text-red-100" aria-hidden="true" />}
+                                                                                </span>
                                                                             </button>
                                                                         );
                                                                     })
@@ -1689,7 +1923,7 @@ function SchedulerContent() {
                                     </table>
                                 </div>
 
-                                <div className="md:hidden p-3 space-y-3">
+                                <div className="lg:hidden p-3 space-y-3">
                                     <div className="grid grid-cols-5 gap-1 rounded-lg bg-surface-900/60 border border-white/5 p-1">
                                         {DAYS.map((day) => (
                                             <button
@@ -1741,9 +1975,15 @@ function SchedulerContent() {
                                                                             type="button"
                                                                             key={course.code}
                                                                             onClick={() => setSelectedCourse(course)}
-                                                                            className={`w-full text-left rounded-md border ${style.border} ${style.bg} p-2`}
+                                                                            className={`cell-enter w-full text-left rounded-md border ${style.border} ${style.bg} p-2`}
                                                                         >
-                                                                            <span className="block text-sm font-semibold text-white truncate">{course.code}</span>
+                                                                            <span className="flex items-center gap-1.5 text-sm font-semibold text-white truncate">
+                                                                                {style.icon}
+                                                                                <span className="truncate">{course.code}</span>
+                                                                                <span className="ml-auto shrink-0 text-[9px] font-medium uppercase text-white/75">
+                                                                                    {getCourseTypeLabel(course.type)}
+                                                                                </span>
+                                                                            </span>
                                                                             <span className="block text-[11px] text-white/80 truncate">{course.name}</span>
                                                                         </button>
                                                                     );
@@ -1775,10 +2015,34 @@ function SchedulerContent() {
                         )}
                     </div>
                 </div>
+                    <ScheduleHealthBar
+                        stats={stats}
+                        conflicts={draftConflicts}
+                        totalEcts={totalEcts}
+                        selectedCount={selectedCount}
+                        days={DAYS}
+                        dayAbbr={DAY_ABBR}
+                        periodTimes={PERIOD_TIMES}
+                        active={activeCourses.length > 0}
+                    />
+                </div>
+                <BuildPanel
+                    selectedItems={selectedItems}
+                    onRemove={toggleCourse}
+                    selectedCount={selectedCount}
+                    totalEcts={totalEcts}
+                    maxEcts={maxEcts}
+                    setMaxEcts={setMaxEcts}
+                    maxConflicts={maxConflicts}
+                    setMaxConflicts={setMaxConflicts}
+                    onGenerate={generateSchedules}
+                    isGenerating={isGenerating}
+                    canGenerate={activeCourses.length > 0}
+                />
             </div>
 
             {showCourseDrawer && (
-                <div className="fixed inset-0 z-50 bg-surface-900 md:hidden no-print">
+                <div className="fixed inset-0 z-50 bg-surface-900 lg:hidden no-print">
                     <div className="h-full flex flex-col">
                         <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-surface-800/80">
                             <div>
@@ -1972,35 +2236,18 @@ function SchedulerContent() {
                 title={t.uploadTitle}
                 closeLabel={t.closeDialog}
             >
-                <div
-                    className={`border-2 border-dashed rounded-xl p-8 text-center transition-all ${isDragging ? 'border-isik-blue-lighter bg-isik-blue-lighter/5' : 'border-white/10'}`}
-                    onDragOver={(event) => { event.preventDefault(); setIsDragging(true); }}
-                    onDragLeave={() => setIsDragging(false)}
-                    onDrop={handleDrop}
-                >
-                    <UploadIcon className="w-10 h-10 text-slate-400 mx-auto mb-3" />
-                    <p className="text-sm text-slate-400 mb-4">{t.uploadSubtitle}</p>
-
-                    {isUploading ? (
-                        <div className="flex items-center justify-center gap-2 text-isik-blue-lighter">
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            <span className="text-sm">{t.uploading}</span>
-                        </div>
-                    ) : (
-                        <label className="cursor-pointer">
-                            <span className="btn-primary !px-6">{t.selectFile}</span>
-                            <input
-                                type="file"
-                                accept=".xlsx"
-                                onChange={(event) => {
-                                    const file = event.target.files?.[0];
-                                    if (file) handleUpload(file);
-                                }}
-                                className="hidden"
-                            />
-                        </label>
-                    )}
-                </div>
+                <UploadDropzone
+                    inputId="scheduler-course-file"
+                    title={t.uploadDropTitle}
+                    helperText={t.uploadSubtitle}
+                    selectLabel={t.selectFile}
+                    invalidFileMessage={t.uploadInvalidFile}
+                    onFileSelect={handleUpload}
+                    onInvalidFile={() => toastError(t.uploadInvalidFile)}
+                    isLoading={isUploading}
+                    loadingLabel={t.uploading}
+                    variant="compact"
+                />
 
                 {fileId && (
                     <button type="button" onClick={() => setShowUploadModal(false)} className="w-full mt-4 text-sm text-slate-400 hover:text-white transition-colors">
@@ -2062,7 +2309,7 @@ function SchedulerContent() {
             </Modal>
 
             {showSettings && (
-                <div className="fixed top-14 right-4 glass-panel p-4 w-72 shadow-2xl shadow-black/40 z-40 animate-fade-in no-print">
+                <div className="fixed top-16 left-3 right-3 sm:left-auto sm:right-4 sm:w-72 glass-panel p-4 shadow-2xl shadow-black/40 z-40 animate-fade-in no-print">
                     <div className="flex items-center justify-between mb-4">
                         <h3 className="text-sm font-semibold text-white">{t.settingsTitle}</h3>
                         <button type="button" onClick={() => setShowSettings(false)} aria-label={t.close} title={t.close} className="p-1 rounded-md hover:bg-white/10 text-slate-400 hover:text-white transition-colors">
@@ -2071,14 +2318,6 @@ function SchedulerContent() {
                     </div>
 
                     <div className="space-y-4">
-                        <div>
-                            <label htmlFor="scheduler-algorithm" className="text-[11px] font-medium uppercase tracking-wider text-slate-400 block mb-1.5">{t.algorithm}</label>
-                            <select id="scheduler-algorithm" value={algorithm} onChange={(event) => setAlgorithm(event.target.value)} className="input-field !py-2 !text-sm">
-                                <option value="dfs">{t.dfs}</option>
-                                <option value="genetic">{t.genetic}</option>
-                                <option value="astar">{t.astar}</option>
-                            </select>
-                        </div>
                         <div>
                             <label htmlFor="scheduler-max-ects" className="text-[11px] font-medium uppercase tracking-wider text-slate-400 block mb-1.5">
                                 {t.maxEcts}: <span className="text-white">{maxEcts}</span>
@@ -2114,7 +2353,7 @@ function SchedulerContent() {
             )}
 
             {showStats && (
-                <div className="fixed top-14 right-4 glass-panel p-4 w-80 shadow-2xl shadow-black/40 z-40 animate-fade-in no-print">
+                <div className="fixed top-16 left-3 right-3 sm:left-auto sm:right-4 sm:w-80 glass-panel p-4 shadow-2xl shadow-black/40 z-40 animate-fade-in no-print">
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-2">
                             <Sparkles className="w-4 h-4 text-isik-blue-lighter" />
@@ -2228,7 +2467,7 @@ function SchedulerContent() {
                                 const style = TYPE_STYLES[selectedCourse.type] || TYPE_STYLES.lecture;
                                 return (
                                     <span className={`badge ${style.bg} text-white flex items-center gap-1`}>
-                                        {style.icon} {style.label}
+                                        {style.icon} {getCourseTypeLabel(selectedCourse.type)}
                                     </span>
                                 );
                             })()}
@@ -2356,6 +2595,32 @@ function StatTile({ label, value, accent }: { label: string; value: string; acce
             <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-1">{label}</p>
             <p className={`text-base font-semibold ${accent}`}>{value}</p>
         </div>
+    );
+}
+
+function ToolMenuButton({
+    icon,
+    label,
+    onClick,
+    disabled = false,
+    fullWidth = false,
+}: {
+    icon: React.ReactNode;
+    label: string;
+    onClick: () => void;
+    disabled?: boolean;
+    fullWidth?: boolean;
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            disabled={disabled}
+            className={`flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs text-slate-200 transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-35 ${fullWidth ? 'w-full' : ''}`}
+        >
+            <span className="shrink-0">{icon}</span>
+            <span className="min-w-0 truncate">{label}</span>
+        </button>
     );
 }
 

@@ -6,6 +6,15 @@ Thumbs.db
 .cursor/
 *.swp
 
+# Claude Code (local, per-machine — never shared)
+.claude/
+
+# Playwright MCP session artifacts (generated)
+.playwright-mcp/
+
+# Brand logo exploration assets (not used by the app)
+/frontend/public/logo-concepts/
+
 # Python
 .venv/
 venv/

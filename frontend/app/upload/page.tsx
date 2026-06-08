@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Upload, FileCheck, Loader2, X, ArrowRight, FileSpreadsheet } from 'lucide-react';
+import { Upload, FileCheck, Loader2, ArrowRight } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import { useToast } from '../components/Toast';
+import { UploadDropzone } from '../components/UploadDropzone';
 import { API_BASE_URL } from '../lib/api';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -12,7 +13,6 @@ export default function UploadPage() {
     const { t } = useLanguage();
     const { toastError } = useToast();
     const [file, setFile] = useState<File | null>(null);
-    const [isDragging, setIsDragging] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [isRedirecting, setIsRedirecting] = useState(false);
     const [uploadResult, setUploadResult] = useState<any>(null);
@@ -27,42 +27,6 @@ export default function UploadPage() {
 
         return () => window.clearTimeout(redirectTimer);
     }, [uploadResult]);
-
-    const handleDragOver = useCallback((event: React.DragEvent) => {
-        event.preventDefault();
-        setIsDragging(true);
-    }, []);
-
-    const handleDragLeave = useCallback((event: React.DragEvent) => {
-        event.preventDefault();
-        setIsDragging(false);
-    }, []);
-
-    const handleDrop = useCallback((event: React.DragEvent) => {
-        event.preventDefault();
-        setIsDragging(false);
-        const droppedFile = event.dataTransfer.files[0];
-
-        if (droppedFile && droppedFile.name.toLowerCase().endsWith('.xlsx')) {
-            setFile(droppedFile);
-            return;
-        }
-
-        toastError(t.uploadInvalidFile);
-    }, [t.uploadInvalidFile, toastError]);
-
-    const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-        const selectedFile = event.target.files?.[0];
-        if (!selectedFile) return;
-
-        if (!selectedFile.name.toLowerCase().endsWith('.xlsx')) {
-            toastError(t.uploadInvalidFile);
-            event.target.value = '';
-            return;
-        }
-
-        setFile(selectedFile);
-    }, [t.uploadInvalidFile, toastError]);
 
     const handleUpload = async () => {
         if (!file) return;
@@ -100,35 +64,21 @@ export default function UploadPage() {
                     <p className="text-sm text-slate-400">{t.uploadSubtitle}</p>
                 </div>
 
-                <div
-                    onDragOver={handleDragOver}
-                    onDragLeave={handleDragLeave}
-                    onDrop={handleDrop}
-                    className={`glass-panel p-10 text-center transition-all cursor-pointer
-                        ${isDragging ? '!border-isik-blue-lighter !bg-isik-blue-lighter/5' : ''}
-                        ${file ? '!border-emerald-500/30 !bg-emerald-500/5' : ''}`}
-                >
-                    {file ? (
-                        <div>
-                            <FileCheck className="w-12 h-12 text-emerald-400 mx-auto mb-3" />
-                            <p className="text-base font-medium text-white">{file.name}</p>
-                            <p className="text-xs text-slate-400 mt-1">{(file.size / 1024).toFixed(1)} KB</p>
-                            <button type="button" onClick={() => setFile(null)} className="mt-3 text-red-400 hover:text-red-300 text-sm flex items-center gap-1 mx-auto transition-colors">
-                                <X className="w-3.5 h-3.5" /> {t.uploadRemoveFile}
-                            </button>
-                        </div>
-                    ) : (
-                        <div>
-                            <FileSpreadsheet className="w-12 h-12 text-slate-400 mx-auto mb-3" />
-                            <p className="text-base font-medium text-slate-300 mb-1">{t.uploadDropTitle}</p>
-                            <p className="text-xs text-slate-400 mb-4">{t.uploadDropOr}</p>
-                            <label className="cursor-pointer">
-                                <span className="btn-primary">{t.selectFile}</span>
-                                <input type="file" accept=".xlsx" onChange={handleFileSelect} className="hidden" />
-                            </label>
-                        </div>
-                    )}
-                </div>
+                <UploadDropzone
+                    inputId="course-file"
+                    title={t.uploadDropTitle}
+                    helperText={t.uploadSubtitle}
+                    selectLabel={t.selectFile}
+                    invalidFileMessage={t.uploadInvalidFile}
+                    selectedFile={file}
+                    onFileSelect={setFile}
+                    onInvalidFile={() => toastError(t.uploadInvalidFile)}
+                    onRemove={() => setFile(null)}
+                    removeLabel={t.uploadRemoveFile}
+                    disabled={isRedirecting}
+                    isLoading={isUploading}
+                    loadingLabel={t.uploading}
+                />
 
                 {file && !uploadResult && (
                     <button type="button" onClick={handleUpload} disabled={isUploading} className="btn-primary w-full !py-3.5 mt-6 !text-base">

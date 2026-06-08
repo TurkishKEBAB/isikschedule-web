@@ -3,10 +3,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, GraduationCap, Loader2 } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, GraduationCap, Loader2, XCircle } from 'lucide-react';
 import { API_BASE_URL } from '../../lib/api';
 import { LanguageSwitcher, useLanguage } from '../../context/LanguageContext';
 import TeacherLink from '../../components/TeacherLink';
+import { ScheduleTypeIcon, ScheduleTypeLegend } from '../../components/ScheduleTypeLegend';
 
 interface SharedCourse {
     code: string;
@@ -114,7 +115,7 @@ export default function SharedSchedulePage() {
             <div className="min-h-screen bg-surface-900 flex items-center justify-center px-6">
                 <div className="text-center max-w-md w-full glass-panel p-8">
                     <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <span className="text-2xl text-red-400">×</span>
+                        <XCircle className="h-8 w-8 text-red-400" aria-hidden="true" />
                     </div>
                     <h2 className="text-xl font-bold text-white mb-2">{error || t.sharedNotFoundTitle}</h2>
                     <p className="text-slate-400 mb-6 font-light">{t.sharedNotFoundDescription}</p>
@@ -152,7 +153,7 @@ export default function SharedSchedulePage() {
 
             <main className="flex-1 p-3 md:p-8 overflow-auto">
                 <div className="max-w-6xl mx-auto glass-panel overflow-hidden shadow-2xl">
-                    <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between gap-3">
+                    <div className="px-4 py-3 border-b border-white/5 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
                         <div>
                             <h2 className="text-lg font-semibold text-white">
                                 {schedule.name || t.sharedSchedule}
@@ -161,6 +162,11 @@ export default function SharedSchedulePage() {
                                 {schedule.courses.length} {t.sharedCourseCount}
                             </p>
                         </div>
+                        <ScheduleTypeLegend
+                            lectureLabel={t.lecture}
+                            labLabel={t.lab}
+                            problemSessionLabel={t.problemSession}
+                        />
                     </div>
 
                     <div className="hidden md:block overflow-x-auto print-area">
@@ -196,7 +202,11 @@ export default function SharedSchedulePage() {
                                                                 key={course.code}
                                                                 className={`p-1.5 rounded-md text-[11px] mb-1 leading-tight shadow-sm border ${hasConflict ? 'border-red-500/50' : style.border} ${style.bg}`}
                                                             >
-                                                                <div className="font-bold text-white truncate" title={course.code}>{course.code}</div>
+                                                                <div className="flex items-center gap-1 font-bold text-white truncate" title={course.code}>
+                                                                    <ScheduleTypeIcon type={course.type} />
+                                                                    <span className="truncate">{course.code}</span>
+                                                                    {hasConflict && <AlertTriangle className="ml-auto h-3 w-3 shrink-0 text-red-100" aria-hidden="true" />}
+                                                                </div>
                                                                 {course.teacher && (
                                                                     <div className="text-[9px] text-white/80 truncate">
                                                                         <TeacherLink teacher={course.teacher} />
@@ -253,7 +263,10 @@ export default function SharedSchedulePage() {
                                                         const style = TYPE_STYLES[course.type?.toLowerCase() || 'lecture'] || TYPE_STYLES.lecture;
                                                         return (
                                                             <div key={course.code} className={`rounded-md border ${style.border} ${style.bg} p-2`}>
-                                                                <div className="text-sm font-semibold text-white truncate">{course.code}</div>
+                                                                <div className="flex items-center gap-1.5 text-sm font-semibold text-white truncate">
+                                                                    <ScheduleTypeIcon type={course.type} className="h-3.5 w-3.5" />
+                                                                    <span className="truncate">{course.code}</span>
+                                                                </div>
                                                                 <div className="text-[11px] text-white/80 truncate">{course.name}</div>
                                                                 {course.teacher && (
                                                                     <div className="text-[10px] text-white/75 truncate mt-1">

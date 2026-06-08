@@ -4,10 +4,11 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
     GraduationCap, Users, Calendar, BookOpen, Clock,
-    Upload, FileSpreadsheet, CheckCircle, Shield, LogOut, Loader2
+    FileSpreadsheet, CheckCircle, Shield, LogOut, Loader2
 } from 'lucide-react';
 import { useAuth, RequireAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
+import { UploadDropzone } from '../components/UploadDropzone';
 import { API_BASE_URL } from '../lib/api';
 import { LanguageSwitcher, useLanguage } from '../context/LanguageContext';
 
@@ -29,7 +30,7 @@ interface Semester {
 function AdminDashboard() {
     const { user, token, logout } = useAuth();
     const { toastSuccess, toastError } = useToast();
-    const { t } = useLanguage();
+    const { lang, t } = useLanguage();
     const [stats, setStats] = useState<Stats | null>(null);
     const [semesters, setSemesters] = useState<Semester[]>([]);
     const [isStatsLoading, setIsStatsLoading] = useState(true);
@@ -74,9 +75,7 @@ function AdminDashboard() {
         fetchSemesters();
     }, [fetchStats, fetchSemesters]);
 
-    const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+    const handleUpload = async (file: File) => {
         if (!file.name.toLowerCase().endsWith('.xlsx')) {
             toastError(t.adminUploadInvalid);
             return;
@@ -189,14 +188,19 @@ function AdminDashboard() {
                             <input id="admin-semester-name" name="semesterName" type="text" value={semesterName} onChange={(e) => setSemesterName(e.target.value)}
                                 className="input-field !w-auto" placeholder="2026-2027-Guz" />
                         </div>
-                        <div>
-                            <label className="text-[11px] font-medium uppercase tracking-wider text-slate-400 block mb-1.5">{t.adminExcelFile}</label>
-                            <label className="cursor-pointer">
-                                <span className={`btn-primary ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
-                                    {isUploading ? <><Loader2 className="w-4 h-4 animate-spin" />{t.adminUploading}</> : <><Upload className="w-4 h-4" />{t.adminChooseExcel}</>}
-                                </span>
-                                <input type="file" accept=".xlsx" onChange={handleUpload} disabled={isUploading} className="hidden" />
-                            </label>
+                        <div className="w-full sm:w-80">
+                            <UploadDropzone
+                                inputId="admin-semester-file"
+                                title={t.adminExcelFile}
+                                helperText={t.uploadSubtitle}
+                                selectLabel={t.adminChooseExcel}
+                                invalidFileMessage={t.adminUploadInvalid}
+                                onFileSelect={handleUpload}
+                                onInvalidFile={() => toastError(t.adminUploadInvalid)}
+                                isLoading={isUploading}
+                                loadingLabel={t.adminUploading}
+                                variant="compact"
+                            />
                         </div>
                     </div>
                 </div>
@@ -235,7 +239,7 @@ function AdminDashboard() {
                                                 )}
                                             </div>
                                             <div className="text-xs text-slate-400">
-                                                {sem.course_count} {t.courses} · {new Date(sem.uploaded_at).toLocaleDateString('tr-TR')}
+                                                {sem.course_count} {t.courses} · {new Date(sem.uploaded_at).toLocaleDateString(lang === 'en' ? 'en-GB' : 'tr-TR')}
                                             </div>
                                         </div>
                                     </div>
