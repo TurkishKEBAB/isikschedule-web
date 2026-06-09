@@ -161,7 +161,10 @@ def extract_main_code(code: str) -> str:
     return code.strip()
 
 
-def process_excel(file_path: Union[str, Path], sheet_name: Union[str, int] = 0) -> List[Dict]:
+def process_excel(
+    file_path: Union[str, Path],
+    sheet_name: Union[str, int] = 0,
+) -> List[Dict[str, object]]:
     """
     Load courses from an Excel file in Işık University format.
     

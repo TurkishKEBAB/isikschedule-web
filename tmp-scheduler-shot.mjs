@@ -1,4 +1,4 @@
-// TEMP — seed a selection + a couple painted busy slots, screenshot the new 3-zone scheduler.
+// TEMP — seed a single simple course, generate, screenshot the R1 single-result state.
 import { spawn } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -13,7 +13,7 @@ const CHROME = [process.env.CHROME, 'C:/Program Files/Google/Chrome/Application/
 
 async function launchChrome() {
   const userDataDir = mkdtempSync(join(tmpdir(), 'isik-chrome-'));
-  const proc = spawn(CHROME, ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check', '--disable-extensions', '--hide-scrollbars', '--window-size=1600,1000', '--remote-debugging-port=0', '--user-data-dir=' + userDataDir, 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] });
+  const proc = spawn(CHROME, ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check', '--disable-extensions', '--hide-scrollbars', '--window-size=1440,1000', '--remote-debugging-port=0', '--user-data-dir=' + userDataDir, 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] });
   const wsUrl = await new Promise((resolve, reject) => {
     let buf = ''; const t = setTimeout(() => reject(new Error('no devtools endpoint')), 20000);
     proc.stderr.on('data', (d) => { buf += d.toString(); const m = buf.match(/ws:\/\/127\.0\.0\.1:(\d+)\/devtools\/browser\/\S+/); if (m) { clearTimeout(t); resolve(m[0]); } });
@@ -42,12 +42,24 @@ const pause = (ms) => new Promise((r) => setTimeout(r, ms));
   try {
     await cdp.send('Page.navigate', { url: WEB + '/' });
     await waitFor(cdp, "document.readyState === 'complete'", { label: 'landing' });
-    const snap = { fileId: FILE_ID, sourceLabel: '2024-2025 Güz', selectedCourseCodes: [], selectedMainCodes: MAINS, lockedSlots: ['Friday-1', 'Friday-2', 'Friday-3'], algorithm: 'dfs', maxEcts: 45, maxConflicts: 1 };
+    const snap = { fileId: FILE_ID, sourceLabel: '2024-2025 Güz', selectedCourseCodes: [], selectedMainCodes: MAINS, lockedSlots: [], algorithm: 'dfs', maxEcts: 45, maxConflicts: 1 };
     await evaluate(cdp, `localStorage.setItem('isikschedule:scheduler:v1', ${JSON.stringify(JSON.stringify(snap))})`);
     await cdp.send('Page.navigate', { url: WEB + '/scheduler' });
     await waitFor(cdp, "!!document.body && /program oluştur/i.test(document.body.innerText)", { label: 'scheduler restored' });
-    await pause(1500);
-    await shot(cdp, 'scheduler-new.png');
-  } catch (e) { console.error('ERR:', e.message); try { await shot(cdp, 'scheduler-error.png'); } catch {} }
+    await pause(1000);
+    await evaluate(cdp, `(() => { const b=[...document.querySelectorAll('button')].find(x=>/program oluştur/i.test(x.textContent||'') && !x.disabled); if(b) b.click(); })()`);
+    await waitFor(cdp, "/uygun|program bulundu|kombinasyon/i.test(document.body.innerText)", { label: 'results overlay', timeout: 30000 });
+    await pause(1800);
+    const cardCount = await evaluate(cdp, `[...document.querySelectorAll('p')].filter(p=>/^Program #\\d+$/.test((p.textContent||'').trim())).length`);
+    const variantBadge = await evaluate(cdp, `(document.body.innerText.match(/↔\\s*(\\d+)\\s*seçenek/)||[])[1] || 'none'`);
+    console.log('result cards:', cardCount, '| variant badge count:', variantBadge);
+    await shot(cdp, 'results-r2.png');
+    // scroll to the shareable card (variant picker lives there) and shoot again
+    await evaluate(cdp, `(() => { const el=[...document.querySelectorAll('div')].find(d=>typeof d.className==='string' && d.className.includes('fixed')&&d.className.includes('overflow-y-auto')); if(el){ el.scrollTop=el.scrollHeight; } })()`);
+    await pause(900);
+    const hasPicker = await evaluate(cdp, `/Aynı saat düzeni/.test(document.body.innerText)`);
+    console.log('variant picker present:', hasPicker);
+    await shot(cdp, 'results-variants-detail.png');
+  } catch (e) { console.error('ERR:', e.message); try { await shot(cdp, 'results-single-error.png'); } catch {} }
   finally { cdp.close(); proc.kill(); }
 })();

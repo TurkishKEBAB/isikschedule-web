@@ -5,7 +5,7 @@ import { InfoTerm } from './LockingTooltip';
 
 /**
  * Score weights — mirror of the backend formula in
- * `backend/app/api/routes/generate.py` (`generate_schedules_sync`):
+ * `backend/app/scheduling/solver.py` (`_materialize_schedule`):
  *   score = (10 - conflict_count) * 50 + course_count * 20 + total_ects
  * Keep these in sync if the backend scoring ever changes.
  */

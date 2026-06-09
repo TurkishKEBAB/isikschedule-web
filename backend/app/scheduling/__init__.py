@@ -1,0 +1,1 @@
+"""Schedule generation domain services."""
