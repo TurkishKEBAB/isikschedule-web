@@ -45,7 +45,7 @@ const pause = (ms) => new Promise((r) => setTimeout(r, ms));
     const snap = { fileId: FILE_ID, sourceLabel: '2024-2025 Güz', selectedCourseCodes: [], selectedMainCodes: MAINS, lockedSlots: [], algorithm: 'dfs', maxEcts: 45, maxConflicts: 1 };
     await evaluate(cdp, `localStorage.setItem('isikschedule:scheduler:v1', ${JSON.stringify(JSON.stringify(snap))})`);
     await cdp.send('Page.navigate', { url: WEB + '/scheduler' });
-    await waitFor(cdp, "!!document.body && /program oluştur/i.test(document.body.innerText)", { label: 'scheduler restored' });
+    await waitFor(cdp, "!!document.body && /oluştur/i.test(document.body.innerText)", { label: 'scheduler restored' });
     await pause(1000);
     await evaluate(cdp, `(() => { const b=[...document.querySelectorAll('button')].find(x=>/program oluştur/i.test(x.textContent||'') && !x.disabled); if(b) b.click(); })()`);
     await waitFor(cdp, "/uygun|program bulundu|kombinasyon/i.test(document.body.innerText)", { label: 'results overlay', timeout: 30000 });

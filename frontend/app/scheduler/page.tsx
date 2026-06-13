@@ -22,7 +22,7 @@ import { ScheduleTypeLegend } from '../components/ScheduleTypeLegend';
 import { AuroraBackground } from '../components/AuroraBackground';
 import { GeneratedSchedulesView, type Diagnosis } from '../components/GeneratedSchedulesView';
 import { ScheduleHealthBar } from '../components/scheduler/ScheduleHealthBar';
-import { BuildPanel, type SelectedCourseItem } from '../components/scheduler/BuildPanel';
+import { BuildPanel, type SelectedCourseItem, type SchedulerPreferences } from '../components/scheduler/BuildPanel';
 import { API_BASE_URL } from '../lib/api';
 import {
     clearSchedulerSnapshot,
@@ -419,6 +419,14 @@ function SchedulerContent() {
 
     const [maxEcts, setMaxEcts] = useState(DEFAULT_MAX_ECTS);
     const [maxConflicts, setMaxConflicts] = useState(DEFAULT_MAX_CONFLICTS);
+    const [preferences, setPreferences] = useState<SchedulerPreferences>({
+        earliestPeriod: 1,
+        latestPeriod: PERIODS.length,
+        daysOff: [],
+        gapPreference: 'balanced',
+    });
+    const updatePreferences = (patch: Partial<SchedulerPreferences>) =>
+        setPreferences((prev) => ({ ...prev, ...patch }));
 
     const [selectedInstructor, setSelectedInstructor] = useState('all');
     const [history, setHistory] = useState<{ courses: Course[]; lockedSlots: string[] }[]>([]);
@@ -1134,6 +1142,10 @@ function SchedulerContent() {
                         max_ects: maxEcts,
                         max_conflicts: maxConflicts,
                         locked_slots: lockedSlotsArray,
+                        earliest_period: preferences.earliestPeriod,
+                        latest_period: preferences.latestPeriod,
+                        days_off: preferences.daysOff,
+                        gap_preference: preferences.gapPreference,
                     },
                 }),
             });
@@ -2051,6 +2063,10 @@ function SchedulerContent() {
                     setMaxEcts={setMaxEcts}
                     maxConflicts={maxConflicts}
                     setMaxConflicts={setMaxConflicts}
+                    preferences={preferences}
+                    onPreferencesChange={updatePreferences}
+                    periodTimes={PERIOD_TIMES}
+                    dayOptions={DAYS.map((day) => ({ key: day, label: DAY_ABBR[day] }))}
                     onGenerate={generateSchedules}
                     isGenerating={isGenerating}
                     canGenerate={activeCourses.length > 0}

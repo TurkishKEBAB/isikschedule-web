@@ -8,6 +8,15 @@ export interface SelectedCourseItem {
     ects: number;
 }
 
+export type GapPreference = 'compact' | 'balanced' | 'spread';
+
+export interface SchedulerPreferences {
+    earliestPeriod: number;
+    latestPeriod: number;
+    daysOff: string[];
+    gapPreference: GapPreference;
+}
+
 interface BuildPanelProps {
     selectedItems: SelectedCourseItem[];
     onRemove: (mainCode: string) => void;
@@ -17,6 +26,10 @@ interface BuildPanelProps {
     setMaxEcts: (value: number) => void;
     maxConflicts: number;
     setMaxConflicts: (value: number) => void;
+    preferences: SchedulerPreferences;
+    onPreferencesChange: (patch: Partial<SchedulerPreferences>) => void;
+    periodTimes: string[];
+    dayOptions: { key: string; label: string }[];
     onGenerate: () => void;
     isGenerating: boolean;
     canGenerate: boolean;
@@ -58,10 +71,30 @@ function SelectedCoursesTray({ items, onRemove }: { items: SelectedCourseItem[];
     );
 }
 
-function PreferencesPanel({ maxEcts, setMaxEcts, maxConflicts, setMaxConflicts }: {
-    maxEcts: number; setMaxEcts: (v: number) => void; maxConflicts: number; setMaxConflicts: (v: number) => void;
+function PreferencesPanel({
+    maxEcts, setMaxEcts, maxConflicts, setMaxConflicts,
+    preferences, onPreferencesChange, periodTimes, dayOptions,
+}: {
+    maxEcts: number; setMaxEcts: (v: number) => void;
+    maxConflicts: number; setMaxConflicts: (v: number) => void;
+    preferences: SchedulerPreferences;
+    onPreferencesChange: (patch: Partial<SchedulerPreferences>) => void;
+    periodTimes: string[];
+    dayOptions: { key: string; label: string }[];
 }) {
     const { t } = useLanguage();
+    const periodLabel = (p: number) => periodTimes[p - 1] ?? String(p);
+    const gapOptions: { key: GapPreference; label: string }[] = [
+        { key: 'compact', label: t.schedulerGapCompact },
+        { key: 'balanced', label: t.schedulerGapBalanced },
+        { key: 'spread', label: t.schedulerGapSpread },
+    ];
+    const toggleDayOff = (key: string) => {
+        const next = preferences.daysOff.includes(key)
+            ? preferences.daysOff.filter((day) => day !== key)
+            : [...preferences.daysOff, key];
+        onPreferencesChange({ daysOff: next });
+    };
     return (
         <div>
             <p className="mb-3 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
@@ -99,6 +132,80 @@ function PreferencesPanel({ maxEcts, setMaxEcts, maxConflicts, setMaxConflicts }
                         className="h-1.5 w-full rounded-full accent-isik-gold"
                     />
                 </div>
+                <div>
+                    <label htmlFor="build-earliest" className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-slate-400">
+                        {t.schedulerEarliest}: <span className="text-white">{periodLabel(preferences.earliestPeriod)}</span>
+                    </label>
+                    <input
+                        id="build-earliest"
+                        type="range"
+                        min="1"
+                        max="10"
+                        value={preferences.earliestPeriod}
+                        onChange={(event) => onPreferencesChange({ earliestPeriod: Math.min(+event.target.value, preferences.latestPeriod) })}
+                        className="h-1.5 w-full rounded-full accent-isik-blue-lighter"
+                    />
+                </div>
+                <div>
+                    <label htmlFor="build-latest" className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-slate-400">
+                        {t.schedulerLatest}: <span className="text-white">{periodLabel(preferences.latestPeriod)}</span>
+                    </label>
+                    <input
+                        id="build-latest"
+                        type="range"
+                        min="1"
+                        max="10"
+                        value={preferences.latestPeriod}
+                        onChange={(event) => onPreferencesChange({ latestPeriod: Math.max(+event.target.value, preferences.earliestPeriod) })}
+                        className="h-1.5 w-full rounded-full accent-isik-blue-lighter"
+                    />
+                </div>
+                <div>
+                    <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-slate-400">{t.schedulerDaysOff}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                        {dayOptions.map((day) => {
+                            const active = preferences.daysOff.includes(day.key);
+                            return (
+                                <button
+                                    key={day.key}
+                                    type="button"
+                                    onClick={() => toggleDayOff(day.key)}
+                                    aria-pressed={active}
+                                    className={`rounded-lg border px-2.5 py-1 text-[11px] font-medium transition ${
+                                        active
+                                            ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300'
+                                            : 'border-white/10 bg-white/[0.03] text-slate-400 hover:text-slate-200'
+                                    }`}
+                                >
+                                    {day.label}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+                <div>
+                    <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wider text-slate-400">{t.schedulerGapPref}</p>
+                    <div className="grid grid-cols-3 gap-1.5">
+                        {gapOptions.map((option) => {
+                            const active = preferences.gapPreference === option.key;
+                            return (
+                                <button
+                                    key={option.key}
+                                    type="button"
+                                    onClick={() => onPreferencesChange({ gapPreference: option.key })}
+                                    aria-pressed={active}
+                                    className={`rounded-lg border px-2 py-1.5 text-[11px] font-medium transition ${
+                                        active
+                                            ? 'border-isik-blue-lighter/40 bg-isik-blue-lighter/15 text-isik-blue-lighter'
+                                            : 'border-white/10 bg-white/[0.03] text-slate-400 hover:text-slate-200'
+                                    }`}
+                                >
+                                    {option.label}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
             </div>
         </div>
     );
@@ -112,6 +219,7 @@ function PreferencesPanel({ maxEcts, setMaxEcts, maxConflicts, setMaxConflicts }
 export function BuildPanel({
     selectedItems, onRemove, selectedCount, totalEcts,
     maxEcts, setMaxEcts, maxConflicts, setMaxConflicts,
+    preferences, onPreferencesChange, periodTimes, dayOptions,
     onGenerate, isGenerating, canGenerate,
 }: BuildPanelProps) {
     const { t } = useLanguage();
@@ -125,6 +233,10 @@ export function BuildPanel({
                     setMaxEcts={setMaxEcts}
                     maxConflicts={maxConflicts}
                     setMaxConflicts={setMaxConflicts}
+                    preferences={preferences}
+                    onPreferencesChange={onPreferencesChange}
+                    periodTimes={periodTimes}
+                    dayOptions={dayOptions}
                 />
             </div>
 

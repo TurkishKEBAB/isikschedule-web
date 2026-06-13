@@ -116,9 +116,28 @@ def load_courses_for_generation(file_id: str) -> list[CourseData]:
         ) from exc
 
 
+def run_job(
+    job_id: str,
+    all_courses: list[CourseData],
+    selected_main_codes: list[str],
+    algorithm: str,
+    params: dict[str, object],
+) -> None:
+    try:
+        result = generate_result_sync(all_courses, selected_main_codes, algorithm, params)
+        JOBS[job_id]["status"] = "completed"
+        JOBS[job_id]["progress"] = 100
+        JOBS[job_id]["message"] = f"Generated {len(result['schedules'])} schedules"
+        JOBS[job_id]["result"] = result
+    except Exception as exc:
+        logger.exception("Generation error")
+        JOBS[job_id]["status"] = "failed"
+        JOBS[job_id]["message"] = str(exc)
+
+
 @router.post("/generate", response_model=JobResponse)
 async def start_generation(request: GenerateRequest) -> JobResponse:
-    """Run exact bounded schedule generation."""
+    """Run exact bounded schedule generation synchronously (results live in JOBS)."""
     if not request.selected_main_codes:
         raise HTTPException(status_code=400, detail="No courses selected")
     if len(request.selected_main_codes) > 15:
@@ -132,38 +151,21 @@ async def start_generation(request: GenerateRequest) -> JobResponse:
     )
 
     job_id = str(uuid.uuid4())
-    created_at = datetime.now(timezone.utc).isoformat()
     JOBS[job_id] = {
         "status": "processing",
         "progress": 0,
         "message": "Starting generation...",
         "result": None,
-        "created_at": created_at,
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
 
-    try:
-        result = generate_result_sync(
-            all_courses,
-            request.selected_main_codes,
-            request.algorithm,
-            request.params or {},
-        )
-        JOBS[job_id] = {
-            "status": "completed",
-            "progress": 100,
-            "message": f"Generated {len(result['schedules'])} schedules",
-            "result": result,
-            "created_at": created_at,
-        }
-    except Exception as exc:
-        logger.exception("Generation error")
-        JOBS[job_id] = {
-            "status": "failed",
-            "progress": 0,
-            "message": str(exc),
-            "result": None,
-            "created_at": created_at,
-        }
+    run_job(
+        job_id,
+        all_courses,
+        request.selected_main_codes,
+        request.algorithm,
+        request.params or {},
+    )
 
     job = JOBS[job_id]
     return JobResponse(
@@ -173,9 +175,23 @@ async def start_generation(request: GenerateRequest) -> JobResponse:
     )
 
 
+
 @router.get("/jobs/{job_id}")
 async def get_job_status(job_id: str) -> dict[str, object]:
     """Get generation status and its result envelope."""
+    # Memory leak prevention: delete old jobs (>1 hr)
+    now = datetime.now(timezone.utc)
+    to_delete = []
+    for jid, jstate in JOBS.items():
+        try:
+            j_time = datetime.fromisoformat(jstate["created_at"])
+            if (now - j_time).total_seconds() > 3600:
+                to_delete.append(jid)
+        except Exception:
+            pass
+    for jid in to_delete:
+        del JOBS[jid]
+
     if job_id not in JOBS:
         raise HTTPException(status_code=404, detail="Job not found")
 
@@ -187,6 +203,7 @@ async def get_job_status(job_id: str) -> dict[str, object]:
         "message": job["message"],
         "result": job["result"],
     }
+
 
 
 @router.delete("/jobs/{job_id}")

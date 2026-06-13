@@ -33,6 +33,8 @@ export interface ResultSchedule {
     /** Section/teacher alternatives that share this exact weekly layout (≤5; total in variant_count). */
     variants?: ResultCourse[][];
     variant_count?: number;
+    /** Authoritative per-term score breakdown from the backend. */
+    score_breakdown?: { key: string; points: number }[];
 }
 
 export interface DiagnosisReason {
@@ -160,6 +162,8 @@ export function GeneratedSchedulesView({
             : selected ? [selected.courses] : [];
     const safeVariantIdx = Math.min(variantIdx, Math.max(selectedVariants.length - 1, 0));
     const activeVariantCourses = selectedVariants[safeVariantIdx] ?? selected?.courses ?? [];
+    // The shareable timetable must reflect the chosen variant's section codes, not just the list below it.
+    const activeOccupancy = buildOccupancy(activeVariantCourses);
     const variantKey = (course: ResultCourse) => `${course.main_code ?? course.code}:${course.type}`;
     const varyingVariantKeys = (() => {
         const keys = new Set<string>();
@@ -361,6 +365,31 @@ export function GeneratedSchedulesView({
         },
     ] as const;
 
+    // Honest archetype labels: each badge is assigned to the single best alternative for
+    // that metric (codex's MMR diversity makes these genuinely distinct schedules).
+    const archetypeByIdx = useMemo<Record<number, string>>(() => {
+        if (schedules.length <= 1) return {};
+        const labels: Record<number, string> = { 0: t.resultsBestMatch };
+        const used = new Set<number>([0]);
+        const assign = (label: string, metric: (i: number) => number, prefersHigher: boolean) => {
+            // Honest: only label the single, uniquely-best schedule for this metric, and only
+            // when there is real variation. Avoids "most free days" on cards that all have zero.
+            const values = schedules.map((_, i) => metric(i));
+            const best = prefersHigher ? Math.max(...values) : Math.min(...values);
+            const worst = prefersHigher ? Math.min(...values) : Math.max(...values);
+            if (best === worst) return;
+            const winners = values.flatMap((value, i) => (value === best ? [i] : []));
+            if (winners.length !== 1 || used.has(winners[0])) return;
+            labels[winners[0]] = label;
+            used.add(winners[0]);
+        };
+        assign(t.resultsArchetypeCompact, (i) => perStats[i].totalGaps, false);
+        assign(t.resultsArchetypeFreeDays, (i) => perStats[i].freeDays.length, true);
+        assign(t.resultsArchetypeLateStart, (i) => perStats[i].earliestPeriod ?? 0, true);
+        assign(t.resultsArchetypeLight, (i) => perStats[i].totalHours, false);
+        return labels;
+    }, [schedules, perStats, t.resultsBestMatch, t.resultsArchetypeCompact, t.resultsArchetypeFreeDays, t.resultsArchetypeLateStart, t.resultsArchetypeLight]);
+
     return (
         <div className="fixed inset-0 z-50 overflow-y-auto bg-[#0B1020] text-slate-100 no-print">
             <AuroraBackground variant="absolute" vignette={false} className="opacity-70" />
@@ -436,8 +465,9 @@ export function GeneratedSchedulesView({
                     <p className="mt-4 text-base leading-relaxed text-slate-400">{single ? t.resultsSingleSubtitle : t.resultsSubtitle}</p>
                 </div>
 
-                {/* Cards */}
-                <div className={single ? 'mx-auto max-w-md' : 'grid gap-6 sm:grid-cols-2 lg:grid-cols-3'}>
+                {/* Workspace: alternatives rail (left) + selected detail (right) */}
+                <div className={single ? '' : 'grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)] xl:items-start'}>
+                <div className={single ? 'mx-auto max-w-md' : 'grid gap-4 sm:grid-cols-2 xl:grid-cols-1 xl:content-start'}>
                     {schedules.map((schedule, idx) => {
                         const stats = perStats[idx];
                         const isSelected = idx === currentIdx;
@@ -451,12 +481,16 @@ export function GeneratedSchedulesView({
                                     isBest
                                         ? 'from-isik-gold/60 via-isik-blue-lighter/40 to-lab/40'
                                         : 'from-white/10 via-isik-blue-lighter/15 to-isik-gold/10'
-                                } ${isFocused ? 'ring-2 ring-isik-blue-lighter/70 ring-offset-2 ring-offset-[#0B1020]' : ''}`}
+                                } ${(isFocused || isSelected) ? 'ring-2 ring-isik-blue-lighter/70 ring-offset-2 ring-offset-[#0B1020]' : ''}`}
                             >
-                                {isBest && (
-                                    <span className="absolute -top-3 left-6 z-10 inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-isik-gold to-amber-500 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-[#3b2700] shadow-lg shadow-amber-500/30">
-                                        <Crown className="h-3 w-3" />
-                                        {t.resultsBestMatch}
+                                {archetypeByIdx[idx] && (
+                                    <span className={`absolute -top-3 left-6 z-10 inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide shadow-lg ${
+                                        idx === 0
+                                            ? 'bg-gradient-to-r from-isik-gold to-amber-500 text-[#3b2700] shadow-amber-500/30'
+                                            : 'bg-isik-blue-lighter text-[#04122e] shadow-blue-500/30'
+                                    }`}>
+                                        {idx === 0 && <Crown className="h-3 w-3" />}
+                                        {archetypeByIdx[idx]}
                                     </span>
                                 )}
                                 <div className="h-full rounded-[27px] bg-[#0E1428]/92 p-5 backdrop-blur-xl">
@@ -551,6 +585,7 @@ export function GeneratedSchedulesView({
                     })}
                 </div>
 
+                <div className="min-w-0">
                 {/* Persistent explanation */}
                 {selected && selectedStats && (
                     <section className="mt-10 rounded-[28px] border border-white/10 bg-[#0E1428]/80 p-5 shadow-xl shadow-black/20 backdrop-blur-xl sm:p-6">
@@ -634,7 +669,7 @@ export function GeneratedSchedulesView({
                                                 <ScoreBadge label={t.homeStatEcts} value={selected.total_ects} />
                                             </div>
                                         </div>
-                                        <FullGrid occupancy={occupancies[currentIdx]} dayLabels={dayLabels} />
+                                        <FullGrid occupancy={activeOccupancy} dayLabels={dayLabels} />
                                     </div>
 
                                     {/* Course list + QR + actions */}
@@ -710,6 +745,8 @@ export function GeneratedSchedulesView({
                         </div>
                     </section>
                 )}
+                </div>
+                </div>
                 </>
                 )}
             </main>

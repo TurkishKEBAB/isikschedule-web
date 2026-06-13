@@ -8,13 +8,15 @@ from dataclasses import dataclass, field
 from itertools import islice, product
 from math import inf, prod
 from time import perf_counter
-from typing import Literal, NotRequired, TypeAlias, TypedDict, cast
+from typing import Literal, NamedTuple, NotRequired, TypeAlias, TypedDict, cast
 
 MAX_DISCOVERED_LAYOUTS = 100
 MAX_RETURNED_SCHEDULES = 20
 MAX_VARIANTS_PER_LAYOUT = 5
 QUALITY_WEIGHT = 0.65
 DIVERSITY_WEIGHT = 0.35
+FREE_DAY_BONUS = 15
+GAP_PENALTY = 3
 
 TimeSlot: TypeAlias = tuple[str, int]
 RawTimeSlot: TypeAlias = TimeSlot | list[str | int]
@@ -64,6 +66,11 @@ class RequiredComponents(TypedDict):
     ps: bool
 
 
+class ScoreTerm(TypedDict):
+    key: str
+    points: int | float
+
+
 class GeneratedSchedule(TypedDict):
     id: str
     score: int | float
@@ -73,6 +80,7 @@ class GeneratedSchedule(TypedDict):
     courses: CourseOption
     variant_count: int
     variants: list[CourseOption]
+    score_breakdown: list[ScoreTerm]
 
 
 DiagnosisCode = Literal[
@@ -538,6 +546,25 @@ def _forward_check(
     return True
 
 
+def _free_days_and_gaps(courses: CourseOption) -> tuple[int, int]:
+    """Free weekday count and total intra-day gap hours for a weekly layout."""
+    periods_by_day: dict[str, set[int]] = {
+        day: set() for day in tuple(_DAY_ORDER)[:5]
+    }
+    for course in courses:
+        for day, period in normalize_slots(course.get("schedule", [])):
+            if day in periods_by_day:
+                periods_by_day[day].add(period)
+    free_days = 0
+    total_gaps = 0
+    for periods in periods_by_day.values():
+        if not periods:
+            free_days += 1
+            continue
+        total_gaps += max(periods) - min(periods) + 1 - len(periods)
+    return free_days, total_gaps
+
+
 def _materialize_schedule(
     domains: list[CourseDomain],
     selections: dict[int, LayoutChoice],
@@ -558,7 +585,22 @@ def _materialize_schedule(
     variant_count = prod(len(variant_list) for variant_list in variant_lists)
     courses = variants[0]
     total_ects = sum(choice.total_ects for choice in ordered_choices)
-    score = (10 - conflict_count) * 50 + len(domains) * 20 + total_ects
+    free_days, total_gaps = _free_days_and_gaps(courses)
+    conflict_points = (10 - conflict_count) * 50
+    coverage_points = len(domains) * 20
+    free_day_points = free_days * FREE_DAY_BONUS
+    gap_points = -total_gaps * GAP_PENALTY
+    # Layout quality (free days / gaps) enters the displayed score so that different
+    # weekly layouts of the same course set no longer tie — fixing the "every program
+    # scores the same" problem and giving the diversity selector real score contrast.
+    score = conflict_points + coverage_points + total_ects + free_day_points + gap_points
+    score_breakdown: list[ScoreTerm] = [
+        {"key": "conflict", "points": conflict_points},
+        {"key": "coverage", "points": coverage_points},
+        {"key": "ects", "points": _clean_number(total_ects)},
+        {"key": "free_days", "points": free_day_points},
+        {"key": "gaps", "points": gap_points},
+    ]
 
     return {
         "id": "",
@@ -569,6 +611,7 @@ def _materialize_schedule(
         "courses": courses,
         "variant_count": variant_count,
         "variants": variants,
+        "score_breakdown": score_breakdown,
     }
 
 
@@ -655,17 +698,82 @@ def _schedule_distance(
     )
 
 
+class PreferenceParams(NamedTuple):
+    earliest: int
+    latest: int
+    days_off: frozenset[str]
+    gap_preference: str
+
+
+_NEUTRAL_PREFERENCES = PreferenceParams(
+    earliest=0,
+    latest=99,
+    days_off=frozenset(),
+    gap_preference="balanced",
+)
+
+
+def _read_days_off(raw: object) -> frozenset[str]:
+    if not isinstance(raw, (list, tuple, set)):
+        return frozenset()
+    values = cast("list[object] | tuple[object, ...] | set[object]", raw)
+    return frozenset(str(value) for value in values if str(value) in _DAY_ORDER)
+
+
+def _preference_penalty(
+    features: DiversityFeatures,
+    preferences: PreferenceParams,
+) -> float:
+    """Soft 'misfit' cost (lower is better). Used only to order/select tied-score
+    layouts by the user's time-window / days-off / gap preferences. The displayed
+    score is never modified."""
+    penalty = 0.0
+    for day, period in features.occupied_slots:
+        if period < preferences.earliest:
+            penalty += preferences.earliest - period
+        elif period > preferences.latest:
+            penalty += period - preferences.latest
+    if preferences.days_off:
+        occupied_days = {day for day, _period in features.occupied_slots}
+        penalty += 3.0 * len(preferences.days_off & occupied_days)
+    if preferences.gap_preference == "compact":
+        penalty += 2.0 * features.total_gaps
+    elif preferences.gap_preference == "spread":
+        penalty -= 2.0 * features.total_gaps
+    return penalty
+
+
 def _select_diverse_schedules(
     schedules: list[GeneratedSchedule],
     limit: int,
+    preferences: PreferenceParams = _NEUTRAL_PREFERENCES,
 ) -> list[GeneratedSchedule]:
-    """Select high-quality schedules while avoiding near-duplicate layouts."""
-    ordered = sorted(schedules, key=_schedule_sort_key)
+    """Select high-quality schedules while avoiding near-duplicate layouts.
+
+    Soft preferences act as an 'effective score' used only for ordering and
+    selection; the displayed score is unchanged.
+    """
+    decorated = [
+        (schedule, _diversity_features(schedule)) for schedule in schedules
+    ]
+
+    def effective(item: tuple[GeneratedSchedule, DiversityFeatures]) -> float:
+        schedule, feature = item
+        return float(schedule["score"]) - _preference_penalty(feature, preferences)
+
+    decorated.sort(
+        key=lambda item: (
+            -effective(item),
+            item[0]["conflict_count"],
+            layout_signature(item[0]["courses"]),
+        )
+    )
+    ordered = [schedule for schedule, _feature in decorated]
     if len(ordered) <= limit:
         return ordered
 
-    features = [_diversity_features(schedule) for schedule in ordered]
-    scores = [float(schedule["score"]) for schedule in ordered]
+    features = [feature for _schedule, feature in decorated]
+    scores = [effective(item) for item in decorated]
     minimum_score = min(scores)
     score_range = max(scores) - minimum_score
     max_gap = max(feature.total_gaps for feature in features)
@@ -859,6 +967,12 @@ def generate_schedule_result(
     max_ects = get_int_param(params, "max_ects", 45)
     max_conflicts = get_int_param(params, "max_conflicts", 0)
     locked_slots = normalize_slots(params.get("locked_slots", []))
+    preferences = PreferenceParams(
+        earliest=get_int_param(params, "earliest_period", 0),
+        latest=get_int_param(params, "latest_period", 99),
+        days_off=_read_days_off(params.get("days_off", [])),
+        gap_preference=str(params.get("gap_preference", "balanced")),
+    )
 
     domains, structural_reasons = _build_domains(
         all_courses,
@@ -873,6 +987,13 @@ def generate_schedule_result(
                 "result_count": 0,
                 "reasons": structural_reasons,
             },
+            "metadata": _empty_metadata(started_at),
+        }
+
+    if not domains:
+        return {
+            "schedules": [],
+            "diagnosis": {"status": "empty", "result_count": 0, "reasons": []},
             "metadata": _empty_metadata(started_at),
         }
 
@@ -900,6 +1021,7 @@ def generate_schedule_result(
     returned_schedules = _select_diverse_schedules(
         schedules,
         MAX_RETURNED_SCHEDULES,
+        preferences,
     )
     for index, schedule in enumerate(returned_schedules, start=1):
         schedule["id"] = str(index)
