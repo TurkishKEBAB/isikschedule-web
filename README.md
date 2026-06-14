@@ -6,7 +6,6 @@
 
 - 📊 Upload Excel course schedules
 - 🧠 Multiple scheduling algorithms (DFS, BFS, A*, Genetic, etc.)
-- ⚡ Background job processing for large computations
 - 📱 Fully responsive design
 - 📤 Export to PDF, iCal
 - 🔗 Shareable schedule links
@@ -17,9 +16,7 @@
 |-----------|------------|
 | Backend | FastAPI, Python 3.12 |
 | Frontend | Next.js 14, React, TailwindCSS |
-| Database | PostgreSQL 16 |
-| Cache/Queue | Redis 7 |
-| Background Jobs | Celery |
+| Database | SQLite |
 
 ## Quick Start
 
@@ -69,8 +66,7 @@ isikschedule/
 │   │   ├── api/       # API routes
 │   │   ├── core/      # Business logic
 │   │   ├── algorithms # Scheduling algorithms
-│   │   └── tasks/     # Celery background tasks
-│   └── tests/
+│   │   └── tests/
 ├── frontend/          # Next.js frontend
 │   ├── app/
 │   ├── components/

@@ -1,32 +1,53 @@
-"""Schedule generation endpoints with auto section selection."""
+# pyright: strict
+"""Schedule generation API endpoints."""
 
 import json
+import logging
 import os
 import uuid
-import logging
-from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timezone
-from itertools import product
+from typing import TypedDict, cast
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.core.excel_loader import process_excel
-from app.config import settings
 from app.models.database import GlobalCourse, SessionLocal
+from app.scheduling.solver import (
+    CourseData,
+    Diagnosis,
+    GeneratedSchedule,
+    GenerationResult,
+    SearchMetadata,
+    generate_schedule_result,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# Simple in-memory job store
-JOBS: Dict[str, dict] = {}
+
+class JobResult(TypedDict):
+    schedules: list[GeneratedSchedule]
+    diagnosis: Diagnosis
+    metadata: SearchMetadata
+
+
+class JobState(TypedDict):
+    status: str
+    progress: int
+    message: str
+    result: JobResult | None
+    created_at: str
+
+
+JOBS: dict[str, JobState] = {}
 
 
 class GenerateRequest(BaseModel):
     file_id: str
-    selected_main_codes: List[str]
+    selected_main_codes: list[str]
     algorithm: str = "dfs"
-    params: Optional[Dict] = None
+    params: dict[str, object] | None = None
 
 
 class JobResponse(BaseModel):
@@ -35,269 +56,145 @@ class JobResponse(BaseModel):
     message: str
 
 
-def has_conflict(schedule1: List, schedule2: List) -> bool:
-    """Check if two schedules have time conflicts."""
-    slots1 = set(tuple(s) if isinstance(s, list) else s for s in schedule1)
-    slots2 = set(tuple(s) if isinstance(s, list) else s for s in schedule2)
-    return bool(slots1 & slots2)
-
-
-def courses_conflict(courses: List[dict]) -> bool:
-    """Check if any courses in the list conflict with each other."""
-    all_slots = []
-    for course in courses:
-        schedule = course.get("schedule", [])
-        for slot in schedule:
-            slot_tuple = tuple(slot) if isinstance(slot, list) else slot
-            if slot_tuple in all_slots:
-                return True
-            all_slots.append(slot_tuple)
-    return False
-
-
-def count_conflicts(courses: List[dict]) -> int:
-    """Count the number of time slot conflicts in a course list."""
-    all_slots = []
-    conflicts = 0
-    for course in courses:
-        schedule = course.get("schedule", [])
-        for slot in schedule:
-            slot_tuple = tuple(slot) if isinstance(slot, list) else slot
-            if slot_tuple in all_slots:
-                conflicts += 1
-            else:
-                all_slots.append(slot_tuple)
-    return conflicts
+def generate_result_sync(
+    all_courses: list[CourseData],
+    selected_main_codes: list[str],
+    _algorithm: str,
+    params: dict[str, object],
+) -> GenerationResult:
+    """Generate schedules plus structural diagnosis and search metadata."""
+    return generate_schedule_result(all_courses, selected_main_codes, params)
 
 
 def generate_schedules_sync(
-    all_courses: List[dict],
-    selected_main_codes: List[str],
+    all_courses: list[CourseData],
+    selected_main_codes: list[str],
     algorithm: str,
-    params: dict
-) -> List[dict]:
-    """
-    Generate schedules by:
-    1. Grouping courses by main_code
-    2. Finding all valid combinations of sections
-    3. Returning conflict-free schedules that cover ALL selected courses
-    """
-    max_ects = params.get("max_ects", 45) if params else 45
-    max_conflicts = params.get("max_conflicts", 0) if params else 0
-    
-    logger.info(f"Generating schedules for: {selected_main_codes}")
-    logger.info(f"Max ECTS: {max_ects}, Max Conflicts: {max_conflicts}")
-    
-    # Normalize main codes to uppercase for comparison
-    selected_main_codes_upper = [mc.upper() for mc in selected_main_codes]
-    
-    # Group courses by main_code
-    course_groups: Dict[str, Dict[str, List[dict]]] = {}
-    for course in all_courses:
-        main_code = course["main_code"].upper()
-        if main_code not in selected_main_codes_upper:
-            continue
-            
-        if main_code not in course_groups:
-            course_groups[main_code] = {"lecture": [], "lab": [], "ps": []}
-        
-        course_type = course.get("type", "lecture")
-        course_groups[main_code][course_type].append(course)
-    
-    logger.info(f"Found course groups: {list(course_groups.keys())}")
-    for mc, types in course_groups.items():
-        logger.info(f"  {mc}: lectures={len(types['lecture'])}, labs={len(types['lab'])}, ps={len(types['ps'])}")
-    
-    def get_course_options(main_code: str) -> List[List[dict]]:
-        """Get all valid section combinations for a course.
-
-        Rules:
-        - A lecture's linked PS/lab must be selected together with it.
-        - If the lecture is not selected, none of its linked PS/labs may be selected.
-        - PS/lab sessions cannot be taken without a lecture.
-        - Sections match freely across types (any lecture with any PS/lab).
-        - If both lab and PS exist for a course, both are required.
-        """
-        group = course_groups.get(main_code, {})
-        lectures = group.get("lecture", [])
-        labs = group.get("lab", [])
-        ps_sections = group.get("ps", [])
-
-        if not lectures:
-            return []
-
-        options = []
-        for lecture in lectures:
-            if not labs and not ps_sections:
-                options.append([lecture])
-            elif labs and not ps_sections:
-                for lab in labs:
-                    options.append([lecture, lab])
-            elif ps_sections and not labs:
-                for ps in ps_sections:
-                    options.append([lecture, ps])
-            else:
-                for lab in labs:
-                    for ps in ps_sections:
-                        options.append([lecture, lab, ps])
-
-        return options
-    
-    # Get options for each selected main course
-    main_codes_found = list(course_groups.keys())
-    
-    if not main_codes_found:
-        logger.warning("No matching courses found in the Excel file")
-        return []
-    
-    all_options = [(mc, get_course_options(mc)) for mc in main_codes_found]
-    all_options = [(mc, opts) for mc, opts in all_options if opts]
-    
-    logger.info(f"Course options: {[(mc, len(opts)) for mc, opts in all_options]}")
-    
-    if not all_options:
-        return []
-    
-    # Generate all possible combinations using itertools.product
-    # This ensures we try ALL courses, not skip any
-    option_lists = [opts for _, opts in all_options]
-    
-    valid_schedules = []
-    
-    # Use product to get all combinations
-    for combination in product(*option_lists):
-        # Flatten the combination
-        all_selected = []
-        for course_set in combination:
-            all_selected.extend(course_set)
-        
-        # Check total ECTS
-        total_ects = sum(c.get("ects", 0) for c in all_selected)
-        if total_ects > max_ects:
-            continue
-        
-        # Check for conflicts (allow up to max_conflicts)
-        conflict_count = count_conflicts(all_selected)
-        if conflict_count > max_conflicts:
-            continue
-        
-        # Valid schedule found!
-        valid_schedules.append((all_selected, conflict_count))
-        
-        if len(valid_schedules) >= 100:  # Limit
-            break
-    
-    logger.info(f"Found {len(valid_schedules)} valid schedules")
-    
-    # Convert to response format with scores
-    schedules = []
-    for idx, (courses_list, conflict_count) in enumerate(valid_schedules):
-        total_ects = sum(c.get("ects", 0) for c in courses_list)
-        main_codes_covered = len(set(c.get("main_code", "").upper() for c in courses_list))
-        
-        # Score: prioritize less conflicts, then more courses, then higher ECTS
-        score = (10 - conflict_count) * 50 + main_codes_covered * 20 + total_ects
-        
-        schedules.append({
-            "id": str(idx + 1),
-            "score": score,
-            "total_ects": total_ects,
-            "conflict_count": conflict_count,
-            "course_count": main_codes_covered,
-            "courses": courses_list
-        })
-    
-    # Sort by score
-    schedules.sort(key=lambda x: x["score"], reverse=True)
-
-    return schedules[:20]
+    params: dict[str, object],
+) -> list[GeneratedSchedule]:
+    """Backward-compatible list-only wrapper used by existing callers/tests."""
+    return generate_result_sync(
+        all_courses,
+        selected_main_codes,
+        algorithm,
+        params,
+    )["schedules"]
 
 
-def load_courses_for_generation(file_id: str) -> List[dict]:
+def load_courses_for_generation(file_id: str) -> list[CourseData]:
     """Load courses from an uploaded file or the active global semester."""
     if file_id == "global":
         db = SessionLocal()
         try:
-            active_semester = db.query(GlobalCourse).filter(GlobalCourse.is_active == True).first()
+            active_semester = (
+                db.query(GlobalCourse)
+                .filter(GlobalCourse.is_active.is_(True))
+                .first()
+            )
             if not active_semester:
-                raise HTTPException(status_code=404, detail="No active semester found")
-            return json.loads(active_semester.courses_json)
+                raise HTTPException(
+                    status_code=404,
+                    detail="No active semester found",
+                )
+            courses_json = cast(str, active_semester.courses_json)
+            return cast(list[CourseData], json.loads(courses_json))
         finally:
             db.close()
 
-    # Reuse the upload-route path resolver so file_id is validated against
-    # the UUID4 pattern (Phase 1.7 — no path traversal via file_id).
-    from .upload import _resolve_upload_path
+    from .upload import _resolve_upload_path  # pyright: ignore[reportPrivateUsage]
+
     file_path = _resolve_upload_path(file_id)
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found")
 
     try:
-        return process_excel(file_path)
+        return cast(list[CourseData], process_excel(file_path))
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Error parsing file: {exc}") from exc
+        raise HTTPException(
+            status_code=400,
+            detail=f"Error parsing file: {exc}",
+        ) from exc
+
+
+def run_job(
+    job_id: str,
+    all_courses: list[CourseData],
+    selected_main_codes: list[str],
+    algorithm: str,
+    params: dict[str, object],
+) -> None:
+    try:
+        result = generate_result_sync(all_courses, selected_main_codes, algorithm, params)
+        JOBS[job_id]["status"] = "completed"
+        JOBS[job_id]["progress"] = 100
+        JOBS[job_id]["message"] = f"Generated {len(result['schedules'])} schedules"
+        JOBS[job_id]["result"] = result
+    except Exception as exc:
+        logger.exception("Generation error")
+        JOBS[job_id]["status"] = "failed"
+        JOBS[job_id]["message"] = str(exc)
 
 
 @router.post("/generate", response_model=JobResponse)
-async def start_generation(request: GenerateRequest):
-    """Start schedule generation with auto section selection."""
+async def start_generation(request: GenerateRequest) -> JobResponse:
+    """Run exact bounded schedule generation synchronously (results live in JOBS)."""
     if not request.selected_main_codes:
         raise HTTPException(status_code=400, detail="No courses selected")
-    
     if len(request.selected_main_codes) > 15:
         raise HTTPException(status_code=400, detail="Maximum 15 courses allowed")
-    
+
     all_courses = load_courses_for_generation(request.file_id)
-    logger.info(f"Loaded {len(all_courses)} courses for source {request.file_id}")
-    
+    logger.info(
+        "Loaded %s courses for source %s",
+        len(all_courses),
+        request.file_id,
+    )
+
     job_id = str(uuid.uuid4())
-    
     JOBS[job_id] = {
         "status": "processing",
         "progress": 0,
         "message": "Starting generation...",
         "result": None,
-        "created_at": datetime.now(timezone.utc).isoformat()
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
-    
-    try:
-        schedules = generate_schedules_sync(
-            all_courses,
-            request.selected_main_codes,
-            request.algorithm,
-            request.params or {}
-        )
-        
-        JOBS[job_id] = {
-            "status": "completed",
-            "progress": 100,
-            "message": f"Generated {len(schedules)} schedules",
-            "result": {"schedules": schedules},
-            "created_at": JOBS[job_id]["created_at"]
-        }
-    except Exception as e:
-        logger.error(f"Generation error: {e}")
-        JOBS[job_id] = {
-            "status": "failed",
-            "progress": 0,
-            "message": str(e),
-            "result": None,
-            "created_at": JOBS[job_id]["created_at"]
-        }
-    
+
+    run_job(
+        job_id,
+        all_courses,
+        request.selected_main_codes,
+        request.algorithm,
+        request.params or {},
+    )
+
+    job = JOBS[job_id]
     return JobResponse(
         job_id=job_id,
-        status=JOBS[job_id]["status"],
-        message=JOBS[job_id]["message"],
+        status=job["status"],
+        message=job["message"],
     )
 
 
+
 @router.get("/jobs/{job_id}")
-async def get_job_status(job_id: str):
-    """Get the status of a generation job."""
+async def get_job_status(job_id: str) -> dict[str, object]:
+    """Get generation status and its result envelope."""
+    # Memory leak prevention: delete old jobs (>1 hr)
+    now = datetime.now(timezone.utc)
+    to_delete = []
+    for jid, jstate in JOBS.items():
+        try:
+            j_time = datetime.fromisoformat(jstate["created_at"])
+            if (now - j_time).total_seconds() > 3600:
+                to_delete.append(jid)
+        except Exception:
+            pass
+    for jid in to_delete:
+        del JOBS[jid]
+
     if job_id not in JOBS:
         raise HTTPException(status_code=404, detail="Job not found")
-    
+
     job = JOBS[job_id]
     return {
         "job_id": job_id,
@@ -308,9 +205,10 @@ async def get_job_status(job_id: str):
     }
 
 
+
 @router.delete("/jobs/{job_id}")
-async def cancel_job(job_id: str):
-    """Cancel/delete a job."""
+async def cancel_job(job_id: str) -> dict[str, str]:
+    """Cancel/delete an in-memory job."""
     if job_id in JOBS:
         del JOBS[job_id]
     return {"message": f"Job {job_id} deleted"}

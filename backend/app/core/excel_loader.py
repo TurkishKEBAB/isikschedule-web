@@ -161,7 +161,10 @@ def extract_main_code(code: str) -> str:
     return code.strip()
 
 
-def process_excel(file_path: Union[str, Path], sheet_name: Union[str, int] = 0) -> List[Dict]:
+def process_excel(
+    file_path: Union[str, Path],
+    sheet_name: Union[str, int] = 0,
+) -> List[Dict[str, object]]:
     """
     Load courses from an Excel file in Işık University format.
     
@@ -187,15 +190,26 @@ def process_excel(file_path: Union[str, Path], sheet_name: Union[str, int] = 0) 
 
     courses = []
 
+    def get_first_valid(val):
+        """Extract first valid string from scalar or pandas Series."""
+        if isinstance(val, pd.Series):
+            for v in val:
+                if pd.notna(v) and str(v).strip() and str(v).strip() != "nan":
+                    return str(v).strip()
+            return ""
+        if pd.notna(val) and str(val).strip() and str(val).strip() != "nan":
+            return str(val).strip()
+        return ""
+
     for idx, row in df.iterrows():
         try:
             # Parse basic info
-            code = str(row["code"]).strip() if pd.notna(row["code"]) else ""
-            if not code or code == "nan":
+            code = get_first_valid(row.get("code"))
+            if not code:
                 continue
 
-            name = str(row["name"]).strip() if pd.notna(row["name"]) else ""
-            if not name or name == "nan":
+            name = get_first_valid(row.get("name"))
+            if not name:
                 continue
 
             # Parse ECTS
@@ -204,13 +218,13 @@ def process_excel(file_path: Union[str, Path], sheet_name: Union[str, int] = 0) 
                 ects_val = row.get("ects")
                 if isinstance(ects_val, pd.Series):
                     for val in reversed(list(ects_val)):
-                        if pd.notna(val) and str(val).strip():
+                        if pd.notna(val) and str(val).strip() and str(val).strip() != "nan":
                             try:
                                 ects = int(float(val))
                                 break
                             except (ValueError, TypeError):
                                 pass
-                elif pd.notna(ects_val):
+                elif pd.notna(ects_val) and str(ects_val).strip() != "nan":
                     try:
                         ects = int(float(ects_val))
                     except (ValueError, TypeError):
@@ -218,14 +232,14 @@ def process_excel(file_path: Union[str, Path], sheet_name: Union[str, int] = 0) 
 
             # Parse schedule
             schedule_str = ""
-            if "schedule" in df.columns and pd.notna(row.get("schedule")):
-                sched_value = row["schedule"]
+            if "schedule" in df.columns:
+                sched_value = row.get("schedule")
                 if isinstance(sched_value, pd.Series):
                     for val in sched_value:
-                        if pd.notna(val) and str(val).strip() and any(c.isalpha() for c in str(val)):
+                        if pd.notna(val) and str(val).strip() and str(val).strip() != "nan" and any(c.isalpha() for c in str(val)):
                             schedule_str = str(val).strip()
                             break
-                else:
+                elif pd.notna(sched_value) and str(sched_value).strip() != "nan":
                     schedule_str = str(sched_value).strip()
 
             schedule = parse_schedule(schedule_str)
@@ -237,28 +251,18 @@ def process_excel(file_path: Union[str, Path], sheet_name: Union[str, int] = 0) 
             # Build teacher name
             teacher = None
             if "teacher_first" in df.columns and "teacher_last" in df.columns:
-                first = str(row.get("teacher_first", "")).strip()
-                last = str(row.get("teacher_last", "")).strip()
-                if first != "nan" and last != "nan":
-                    if first and last:
-                        teacher = f"{first} {last}"
-                    elif first:
-                        teacher = first
-                    elif last:
-                        teacher = last
+                first = get_first_valid(row.get("teacher_first"))
+                last = get_first_valid(row.get("teacher_last"))
+                if first and last:
+                    teacher = f"{first} {last}"
+                elif first:
+                    teacher = first
+                elif last:
+                    teacher = last
 
             # Get optional fields
-            faculty = "Unknown Faculty"
-            if "faculty" in df.columns and pd.notna(row.get("faculty")):
-                fac_str = str(row["faculty"]).strip()
-                if fac_str and fac_str != "nan":
-                    faculty = fac_str
-
-            campus = "Main"
-            if "campus" in df.columns and pd.notna(row.get("campus")):
-                camp_str = str(row["campus"]).strip()
-                if camp_str and camp_str != "nan":
-                    campus = camp_str
+            faculty = get_first_valid(row.get("faculty")) or "Unknown Faculty"
+            campus = get_first_valid(row.get("campus")) or "Main"
 
             # Create course dict
             course = {

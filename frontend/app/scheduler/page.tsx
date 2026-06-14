@@ -20,9 +20,9 @@ import TeacherLink from '../components/TeacherLink';
 import { UploadDropzone } from '../components/UploadDropzone';
 import { ScheduleTypeLegend } from '../components/ScheduleTypeLegend';
 import { AuroraBackground } from '../components/AuroraBackground';
-import { GeneratedSchedulesView } from '../components/GeneratedSchedulesView';
+import { GeneratedSchedulesView, type Diagnosis } from '../components/GeneratedSchedulesView';
 import { ScheduleHealthBar } from '../components/scheduler/ScheduleHealthBar';
-import { BuildPanel, type SelectedCourseItem } from '../components/scheduler/BuildPanel';
+import { BuildPanel, type SelectedCourseItem, type SchedulerPreferences } from '../components/scheduler/BuildPanel';
 import { API_BASE_URL } from '../lib/api';
 import {
     clearSchedulerSnapshot,
@@ -56,6 +56,8 @@ interface Schedule {
     conflict_count: number;
     course_count: number;
     courses: Course[];
+    variants?: Course[][];
+    variant_count?: number;
 }
 
 interface CourseSource {
@@ -417,6 +419,14 @@ function SchedulerContent() {
 
     const [maxEcts, setMaxEcts] = useState(DEFAULT_MAX_ECTS);
     const [maxConflicts, setMaxConflicts] = useState(DEFAULT_MAX_CONFLICTS);
+    const [preferences, setPreferences] = useState<SchedulerPreferences>({
+        earliestPeriod: 1,
+        latestPeriod: PERIODS.length,
+        daysOff: [],
+        gapPreference: 'balanced',
+    });
+    const updatePreferences = (patch: Partial<SchedulerPreferences>) =>
+        setPreferences((prev) => ({ ...prev, ...patch }));
 
     const [selectedInstructor, setSelectedInstructor] = useState('all');
     const [history, setHistory] = useState<{ courses: Course[]; lockedSlots: string[] }[]>([]);
@@ -430,6 +440,9 @@ function SchedulerContent() {
     const [isSharing, setIsSharing] = useState(false);
     const [showStats, setShowStats] = useState(false);
     const [showResults, setShowResults] = useState(false);
+    const [diagnosis, setDiagnosis] = useState<Diagnosis | null>(null);
+    const [searchComplete, setSearchComplete] = useState(true);
+    const [candidatePoolSize, setCandidatePoolSize] = useState(0);
     const searchInputRef = useRef<HTMLInputElement | null>(null);
     const exportMenuRef = useRef<HTMLDivElement | null>(null);
     const toolsMenuRef = useRef<HTMLDivElement | null>(null);
@@ -1097,8 +1110,9 @@ function SchedulerContent() {
         }
     };
 
-    const handleResultsSelect = (idx: number) => {
-        const nextCourses = dedupeCourses(schedules[idx]?.courses || []);
+    const handleResultsSelect = (idx: number, variantIndex = 0) => {
+        const schedule = schedules[idx];
+        const nextCourses = dedupeCourses(schedule?.variants?.[variantIndex] ?? schedule?.courses ?? []);
         setActiveCourses(nextCourses);
         setCurrentScheduleIdx(idx);
     };
@@ -1128,6 +1142,10 @@ function SchedulerContent() {
                         max_ects: maxEcts,
                         max_conflicts: maxConflicts,
                         locked_slots: lockedSlotsArray,
+                        earliest_period: preferences.earliestPeriod,
+                        latest_period: preferences.latestPeriod,
+                        days_off: preferences.daysOff,
+                        gap_preference: preferences.gapPreference,
                     },
                 }),
             });
@@ -1145,6 +1163,9 @@ function SchedulerContent() {
 
                     if (data.status === 'completed' && data.result) {
                         const backendSchedules = data.result.schedules || [];
+                        setDiagnosis(data.result.diagnosis ?? null);
+                        setSearchComplete(data.result.metadata?.search_complete ?? true);
+                        setCandidatePoolSize(data.result.metadata?.candidate_pool_size ?? 0);
                         const validSchedules = backendSchedules.filter((schedule: Schedule) =>
                             schedule.courses.every((course) => !courseConflictsWithLocks(course, lockedSlots))
                         );
@@ -1158,7 +1179,11 @@ function SchedulerContent() {
                             toastSuccess(`${validSchedules.length} ${t.schedulerGeneratedCount}`);
                             setShowResults(true);
                         } else {
-                            toastWarning(t.backendConflict);
+                            // Locks are applied during generation now, so an empty result is a
+                            // genuine "no schedule fits" — open the results view in its 0-state.
+                            setSchedules([]);
+                            setCurrentScheduleIdx(0);
+                            setShowResults(true);
                         }
 
                         setIsGenerating(false);
@@ -1556,7 +1581,7 @@ function SchedulerContent() {
                 </div>
             </header>
 
-            {showResults && schedules.length > 0 && (
+            {showResults && (
                 <GeneratedSchedulesView
                     schedules={schedules}
                     currentIdx={currentScheduleIdx}
@@ -1564,6 +1589,9 @@ function SchedulerContent() {
                     sourceLabel={sourceLabel}
                     shareUrl={shareCode ? `${typeof window !== 'undefined' ? window.location.origin : ''}/shared/${shareCode}` : null}
                     isSharing={isSharing}
+                    diagnosis={diagnosis}
+                    searchComplete={searchComplete}
+                    candidatePoolSize={candidatePoolSize}
                     onSelect={handleResultsSelect}
                     onClose={() => setShowResults(false)}
                     onExportIcs={handleExportIcs}
@@ -2035,6 +2063,10 @@ function SchedulerContent() {
                     setMaxEcts={setMaxEcts}
                     maxConflicts={maxConflicts}
                     setMaxConflicts={setMaxConflicts}
+                    preferences={preferences}
+                    onPreferencesChange={updatePreferences}
+                    periodTimes={PERIOD_TIMES}
+                    dayOptions={DAYS.map((day) => ({ key: day, label: DAY_ABBR[day] }))}
                     onGenerate={generateSchedules}
                     isGenerating={isGenerating}
                     canGenerate={activeCourses.length > 0}
