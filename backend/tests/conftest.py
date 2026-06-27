@@ -9,7 +9,6 @@ real on-disk data.db.
 from __future__ import annotations
 
 import io
-from pathlib import Path
 from typing import Iterator
 
 import pytest
@@ -22,6 +21,29 @@ from sqlalchemy.pool import StaticPool
 from app.config import settings
 from app.main import app
 from app.models.database import Base, get_db
+
+
+@pytest.fixture(autouse=True)
+def _isolate_rate_limiter() -> Iterator[None]:
+    """Keep the process-wide slowapi limiter out of the way by default.
+
+    The limiter instance lives at module scope (``app.core.rate_limit``) so
+    its counters survive across tests. Disable it and clear its storage
+    around every test; rate-limit tests re-enable it explicitly in their
+    own body.
+    """
+    from app.core.rate_limit import limiter
+
+    def _quiet_reset() -> None:
+        limiter.enabled = False
+        try:
+            limiter.reset()
+        except Exception:
+            pass
+
+    _quiet_reset()
+    yield
+    _quiet_reset()
 
 
 @pytest.fixture()
@@ -104,10 +126,11 @@ def sample_xlsx_bytes() -> bytes:
 
 
 @pytest.fixture()
-def sample_xlsx_upload(client, sample_xlsx_bytes):
-    """Upload the sample xlsx and return the parsed UploadResponse JSON."""
+def sample_xlsx_upload(client, auth_headers, sample_xlsx_bytes):
+    """Upload the sample xlsx (authenticated) and return the UploadResponse JSON."""
     response = client.post(
         "/api/upload",
+        headers=auth_headers,
         files={
             "file": (
                 "sample.xlsx",

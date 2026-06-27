@@ -8,9 +8,12 @@ from typing import Any, List
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# A2: these are intentionally non-functional placeholders, not real credentials.
+# Real values must come from the environment / .env (see .env.example). They double
+# as the "left at default" sentinels the production guard and bootstrap warning check.
 DEFAULT_SECRET_KEY = "change-me-in-production"
-DEFAULT_ADMIN_EMAIL = "23soft1040@isik.edu.tr"
-DEFAULT_ADMIN_PASSWORD = "yigit12okur1212"
+DEFAULT_ADMIN_EMAIL = "admin@example.com"
+DEFAULT_ADMIN_PASSWORD = "change-me-in-production"  # noqa: S105
 
 
 class Settings(BaseSettings):
@@ -47,6 +50,10 @@ class Settings(BaseSettings):
     
     # Rate Limiting
     RATE_LIMIT_PER_MINUTE: int = 100
+    # Master switch (tests disable this so the shared limiter never trips).
+    RATE_LIMIT_ENABLED: bool = True
+    # Per-IP limit for the upload endpoints (slowapi limit string).
+    UPLOAD_RATE_LIMIT: str = "20/minute"
     
     # Job Settings
     JOB_TIMEOUT_SECONDS: int = 300

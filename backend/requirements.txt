@@ -22,6 +22,10 @@ passlib==1.7.4
 # bcrypt pinned to 4.0.x: passlib 1.7.x is incompatible with bcrypt>=4.1.
 bcrypt==4.0.1
 
+# --- Rate limiting ---
+# Per-IP limits on auth-sensitive / resource-heavy endpoints (A5).
+slowapi==0.1.9
+
 # --- Excel / data ---
 pandas==3.0.2
 openpyxl==3.1.5

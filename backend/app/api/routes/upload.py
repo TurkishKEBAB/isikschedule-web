@@ -6,11 +6,14 @@ import uuid
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 
 from app.config import settings
+from app.core.auth import get_current_user
 from app.core.excel_loader import process_excel
+from app.core.rate_limit import limiter
+from app.models.database import User
 
 router = APIRouter()
 
@@ -55,11 +58,18 @@ class UploadResponse(BaseModel):
 
 
 @router.post("/upload", response_model=UploadResponse)
-async def upload_excel(file: UploadFile = File(...)):
+@limiter.limit(lambda: settings.UPLOAD_RATE_LIMIT)
+async def upload_excel(
+    request: Request,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
     """
     Upload an Excel file containing course schedule data.
 
-    Returns a preview of parsed courses.
+    Requires authentication and is rate limited per IP (A5) so anonymous
+    callers can no longer fill the disk or burn CPU on parsing. Returns a
+    preview of parsed courses.
     """
     # Phase 1.7: extension + MIME allow-list, size enforcement, UUID-only
     # stored filename (never the client-supplied name).
@@ -125,8 +135,13 @@ async def upload_excel(file: UploadFile = File(...)):
 
 
 @router.get("/upload/{file_id}/courses")
-async def get_courses(file_id: str):
-    """Get all courses from an uploaded file."""
+@limiter.limit(lambda: settings.UPLOAD_RATE_LIMIT)
+async def get_courses(
+    request: Request,
+    file_id: str,
+    current_user: User = Depends(get_current_user),
+):
+    """Get all courses from an uploaded file (auth + rate limited, A5)."""
     file_path = _resolve_upload_path(file_id)
 
     if not os.path.exists(file_path):

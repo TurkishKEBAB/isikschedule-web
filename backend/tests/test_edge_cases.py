@@ -1,4 +1,3 @@
-import pytest
 from app.scheduling.solver import generate_schedule_result
 
 def test_0_state_no_courses():

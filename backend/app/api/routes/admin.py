@@ -171,7 +171,7 @@ async def get_stats(
     from ...models.database import SavedSchedule
     total_schedules = db.query(SavedSchedule).count()
     
-    active_semester = db.query(GlobalCourse).filter(GlobalCourse.is_active == True).first()
+    active_semester = db.query(GlobalCourse).filter(GlobalCourse.is_active.is_(True)).first()
     
     total_courses = 0
     semester_name = None

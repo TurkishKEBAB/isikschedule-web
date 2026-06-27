@@ -6,8 +6,6 @@ Provides global courses from admin-uploaded Excel.
 import json
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List, Optional
-
 from ...models.database import get_db, GlobalCourse
 
 router = APIRouter(prefix="/api/courses", tags=["courses"])
@@ -16,7 +14,7 @@ router = APIRouter(prefix="/api/courses", tags=["courses"])
 @router.get("/global")
 async def get_global_courses(db: Session = Depends(get_db)):
     """Get courses from the active semester (no auth required)."""
-    active_semester = db.query(GlobalCourse).filter(GlobalCourse.is_active == True).first()
+    active_semester = db.query(GlobalCourse).filter(GlobalCourse.is_active.is_(True)).first()
     
     if not active_semester:
         raise HTTPException(
