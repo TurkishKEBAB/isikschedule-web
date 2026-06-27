@@ -7,7 +7,6 @@ import {
     CheckCircle2,
     ChevronRight,
     Download,
-    GraduationCap,
     Sparkles,
     Target,
     Zap,
@@ -17,6 +16,7 @@ import { AuroraBackground } from './components/AuroraBackground';
 import { Reveal } from './components/Reveal';
 import { CountUp } from './components/CountUp';
 import { SchedulePreview } from './components/SchedulePreview';
+import { BrandLogo } from './components/BrandLogo';
 
 export default function Home() {
     const { t } = useLanguage();
@@ -28,18 +28,19 @@ export default function Home() {
             <header className="sticky top-0 z-50">
                 <div className="mx-auto mt-4 max-w-7xl px-4 sm:px-6">
                     <div className="flex h-16 items-center justify-between rounded-2xl border border-white/10 bg-white/[0.05] px-4 shadow-2xl shadow-black/40 backdrop-blur-xl ring-1 ring-inset ring-white/10">
-                        <Link href="/" className="flex items-center gap-2.5">
-                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-isik-blue to-isik-blue-lighter shadow-lg shadow-blue-500/30">
-                                <GraduationCap className="h-5 w-5 text-white" />
-                            </div>
-                            <span className="text-lg font-bold tracking-tight text-white">IşıkSchedule</span>
+                        <Link href="/" aria-label="IşıkSchedule" className="flex items-center gap-2.5">
+                            <BrandLogo size="md" priority wordmarkClassName="hidden sm:block" />
                         </Link>
-                        <nav className="flex items-center gap-2">
+                        <nav className="flex items-center gap-1 sm:gap-2">
                             <LanguageSwitcher />
-                            <Link href="/login" className="btn-ghost !text-xs">{t.homeLogin}</Link>
-                            <Link href="/scheduler" className="btn-primary magnetic !text-xs !py-2">
+                            <Link href="/login" className="btn-ghost !px-2 !text-xs sm:!px-4">{t.homeLogin}</Link>
+                            <Link
+                                href="/scheduler"
+                                aria-label={t.homeStart}
+                                className="btn-primary magnetic !p-2 !text-xs sm:!px-4 sm:!py-2"
+                            >
                                 <Calendar className="h-3.5 w-3.5" />
-                                {t.homeStart}
+                                <span className="hidden sm:inline">{t.homeStart}</span>
                             </Link>
                         </nav>
                     </div>
@@ -166,9 +167,7 @@ export default function Home() {
             <footer className="relative z-10 border-t border-white/10 px-4 py-10 sm:px-6">
                 <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 sm:flex-row">
                     <div className="flex items-center gap-2 text-sm text-slate-400">
-                        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-isik-blue to-isik-blue-lighter">
-                            <GraduationCap className="h-4 w-4 text-white" />
-                        </div>
+                        <BrandLogo size="sm" showWordmark={false} />
                         <span>© 2026 IşıkSchedule</span>
                     </div>
                     <p className="text-center text-sm text-slate-400 sm:text-right">{t.homeFooterText}</p>

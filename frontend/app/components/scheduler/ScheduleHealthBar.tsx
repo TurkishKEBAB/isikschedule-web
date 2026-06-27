@@ -49,7 +49,7 @@ export function ScheduleHealthBar({
 
     return (
         <div className="no-print shrink-0 border-t border-white/5 bg-surface-800/70 backdrop-blur-xl">
-            <div className="flex items-center gap-1 overflow-x-auto px-3 py-2 divide-x divide-white/5">
+            <div className="flex min-w-max items-center justify-center gap-1 overflow-x-auto px-3 py-2 divide-x divide-white/5">
                 <Metric
                     icon={<AlertTriangle className="h-4 w-4" />}
                     label={t.conflictsLabel}
