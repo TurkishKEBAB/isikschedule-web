@@ -149,6 +149,7 @@ def auth_headers(client):
     register_payload = {
         "email": "smoke-user@isik.edu.tr",
         "password": "smoke-pass-123",
+        "accepted_terms": True,
     }
     response = client.post("/api/auth/register", json=register_payload)
     assert response.status_code == 200, response.text

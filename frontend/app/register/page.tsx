@@ -14,6 +14,7 @@ export default function RegisterPage() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const [acceptedTerms, setAcceptedTerms] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [error, setError] = useState('');
@@ -31,10 +32,11 @@ export default function RegisterPage() {
             setError(t.registerInvalidDomain);
             return;
         }
+        if (!acceptedTerms) { setError(t.registerConsentRequired); return; }
 
         setIsLoading(true);
         try {
-            await register(email, password);
+            await register(email, password, acceptedTerms);
         } catch (err: any) {
             setError(err.message || t.registerFailed);
         } finally {
@@ -120,6 +122,27 @@ export default function RegisterPage() {
                             </div>
                         </div>
 
+                        <div className="flex items-start gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-3">
+                            <input
+                                id="register-consent"
+                                type="checkbox"
+                                checked={acceptedTerms}
+                                onChange={(event) => setAcceptedTerms(event.target.checked)}
+                                className="mt-1 h-4 w-4 rounded border-white/20 bg-surface-700 text-isik-blue-lighter focus:ring-isik-blue-lighter/50"
+                            />
+                            <label htmlFor="register-consent" className="text-xs leading-5 text-slate-300">
+                                {t.registerConsentPrefix}{' '}
+                                <Link href="/privacy" className="font-medium text-isik-blue-lighter hover:text-blue-200">
+                                    {t.legalPrivacyLink}
+                                </Link>{' '}
+                                {t.registerConsentAnd}{' '}
+                                <Link href="/terms" className="font-medium text-isik-blue-lighter hover:text-blue-200">
+                                    {t.legalTermsLink}
+                                </Link>{' '}
+                                {t.registerConsentSuffix}
+                            </label>
+                        </div>
+
                         <button type="submit" disabled={isLoading}
                             className="btn-primary w-full !py-3">
                             {isLoading ? (
@@ -135,6 +158,12 @@ export default function RegisterPage() {
                         <Link href="/login" className="text-isik-blue-lighter hover:text-blue-300 transition-colors font-medium">
                             {t.registerLoginLink}
                         </Link>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                        <Link href="/privacy" className="hover:text-slate-300">{t.legalPrivacyLink}</Link>
+                        <span aria-hidden="true">/</span>
+                        <Link href="/terms" className="hover:text-slate-300">{t.legalTermsLink}</Link>
                     </div>
                 </div>
             </div>

@@ -9,7 +9,11 @@ silently break the contract.
 def test_register_happy_path(client):
     response = client.post(
         "/api/auth/register",
-        json={"email": "alice@isik.edu.tr", "password": "alice-pw-1"},
+        json={
+            "email": "alice@isik.edu.tr",
+            "password": "alice-pw-1",
+            "accepted_terms": True,
+        },
     )
     assert response.status_code == 200, response.text
 
@@ -20,10 +24,46 @@ def test_register_happy_path(client):
     assert body["user"]["role"] == "user"
 
 
+def test_register_requires_kvkk_terms_consent(client):
+    response = client.post(
+        "/api/auth/register",
+        json={
+            "email": "no-consent@isik.edu.tr",
+            "password": "consent-pw-1",
+        },
+    )
+
+    assert response.status_code == 400
+    assert "KVKK" in response.json()["detail"]
+
+
+def test_register_records_consent_metadata(client, db_session):
+    from app.config import CONSENT_VERSION
+    from app.models.database import User
+
+    response = client.post(
+        "/api/auth/register",
+        json={
+            "email": "consented@isik.edu.tr",
+            "password": "consent-pw-1",
+            "accepted_terms": True,
+        },
+    )
+    assert response.status_code == 200, response.text
+
+    user = db_session.query(User).filter(User.email == "consented@isik.edu.tr").one()
+    assert user.kvkk_consent_at is not None
+    assert user.consent_version == CONSENT_VERSION
+
+
 def test_login_happy_path(client):
     client.post(
         "/api/auth/register",
-        json={"email": "bob@isikun.edu.tr", "password": "bob-pw-1"},
+        json={
+            "email": "bob@isikun.edu.tr",
+            "password": "bob-pw-1",
+            "accepted_terms": True,
+        },
     )
 
     response = client.post(
@@ -37,7 +77,11 @@ def test_login_happy_path(client):
 def test_login_wrong_password_returns_401(client):
     client.post(
         "/api/auth/register",
-        json={"email": "carol@isik.edu.tr", "password": "carol-pw-1"},
+        json={
+            "email": "carol@isik.edu.tr",
+            "password": "carol-pw-1",
+            "accepted_terms": True,
+        },
     )
 
     response = client.post(

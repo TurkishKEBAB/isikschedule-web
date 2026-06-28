@@ -8,8 +8,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 
-from ...config import settings
-from ...models.database import get_db, User
+from ...config import CONSENT_VERSION, settings
+from ...models.database import _utcnow, get_db, User
 from ...core.auth import (
     authenticate_user,
     create_access_token,
@@ -25,6 +25,7 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str
+    accepted_terms: bool = False
 
 
 class LoginRequest(BaseModel):
@@ -61,6 +62,12 @@ async def register(request: RegisterRequest, db: Session = Depends(get_db)):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Password must be at least 6 characters"
         )
+
+    if not request.accepted_terms:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="KVKK aydınlatma metni ve kullanım şartları kabul edilmeden kayıt yapılamaz.",
+        )
     
     # Check if user exists
     existing = db.query(User).filter(User.email == request.email).first()
@@ -74,7 +81,9 @@ async def register(request: RegisterRequest, db: Session = Depends(get_db)):
     user = User(
         email=request.email,
         password_hash=get_password_hash(request.password),
-        role="user"
+        role="user",
+        kvkk_consent_at=_utcnow(),
+        consent_version=CONSENT_VERSION,
     )
     db.add(user)
     db.commit()

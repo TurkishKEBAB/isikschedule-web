@@ -38,6 +38,8 @@ class User(Base):
     role = Column(String(50), default="user")  # "admin" or "user"
     created_at = Column(DateTime, default=_utcnow)
     is_active = Column(Boolean, default=True)
+    kvkk_consent_at = Column(DateTime, nullable=True)
+    consent_version = Column(String(32), nullable=True)
     
     # Relationships
     saved_schedules = relationship("SavedSchedule", back_populates="user")
@@ -112,7 +114,25 @@ def get_db():
 def init_db():
     """Initialize database tables."""
     Base.metadata.create_all(bind=engine)
+    _ensure_consent_columns()
     print("Database tables created.")
+
+
+def _ensure_consent_columns():
+    """Add consent columns to existing SQLite databases.
+
+    The project does not have Alembic yet, so create_all() will not alter an
+    existing data.db. Keep this narrow and idempotent until migrations exist.
+    """
+    if not DATABASE_URL.startswith("sqlite"):
+        return
+
+    with engine.begin() as conn:
+        columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(users)")}
+        if "kvkk_consent_at" not in columns:
+            conn.exec_driver_sql("ALTER TABLE users ADD COLUMN kvkk_consent_at DATETIME")
+        if "consent_version" not in columns:
+            conn.exec_driver_sql("ALTER TABLE users ADD COLUMN consent_version VARCHAR(32)")
 
 
 def create_admin_user():

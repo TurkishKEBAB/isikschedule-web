@@ -14,6 +14,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 DEFAULT_SECRET_KEY = "change-me-in-production"
 DEFAULT_ADMIN_EMAIL = "admin@example.com"
 DEFAULT_ADMIN_PASSWORD = "change-me-in-production"  # noqa: S105
+CONSENT_VERSION = "2026-06-28"
 
 
 class Settings(BaseSettings):
