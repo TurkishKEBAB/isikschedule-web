@@ -45,3 +45,7 @@ backend/
 
 ## API Documentation
 Available at `/docs` (Swagger) or `/redoc` when running.
+
+## License
+
+MIT License — see the root [LICENSE](../LICENSE) file for details.
