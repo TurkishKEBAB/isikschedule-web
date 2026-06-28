@@ -42,7 +42,7 @@ COLUMN_MAP = {
     "AKTS": "ects",
     "ECTS": "ects",
     "Kredi": "ects",
-    "Credit": "ects",    "KTS Kred": "ects",
+    "Credit": "ects",
     "rel Kr": "ects",    "Kampüs": "campus",
     "Campus": "campus",
     "Eğitmen Adı": "teacher_first",

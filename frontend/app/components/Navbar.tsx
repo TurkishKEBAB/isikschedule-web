@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { GraduationCap, Calendar, Upload, LogIn, LogOut, Menu, Shield, User, X } from 'lucide-react';
+import { Calendar, Upload, LogIn, LogOut, Menu, Shield, User, X } from 'lucide-react';
 import { LanguageSwitcher, useLanguage } from '../context/LanguageContext';
 import { useEffect, useRef, useState } from 'react';
+import { BrandLogo } from './BrandLogo';
 
 interface NavUser {
     email: string;
@@ -59,16 +60,11 @@ export default function Navbar() {
     const isActive = (path: string) => pathname === path;
 
     return (
-        <header ref={headerRef} className="sticky top-0 z-50 bg-surface-900/80 backdrop-blur-xl border-b border-white/5">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6">
-                <div className="flex items-center justify-between h-16">
-                    <Link href="/" className="flex items-center gap-2.5 group">
-                        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-isik-blue to-isik-blue-lighter flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:shadow-blue-500/40 transition-shadow">
-                            <GraduationCap className="w-5 h-5 text-white" />
-                        </div>
-                        <span className="hidden md:inline text-lg font-bold text-white tracking-tight">
-                            IşıkSchedule
-                        </span>
+        <header ref={headerRef} className="sticky top-0 z-50 px-3 pt-3 sm:px-4">
+            <div className="mx-auto max-w-7xl rounded-2xl border border-white/10 bg-surface-900/80 px-4 shadow-2xl shadow-black/40 backdrop-blur-xl ring-1 ring-inset ring-white/10 sm:px-5">
+                <div className="flex h-16 items-center justify-between">
+                    <Link href="/" aria-label="IşıkSchedule" className="flex items-center gap-2.5 group">
+                        <BrandLogo size="md" wordmarkClassName="hidden md:block" />
                     </Link>
 
                     <nav className="hidden sm:flex items-center gap-1">
@@ -115,7 +111,7 @@ export default function Navbar() {
                 {mobileOpen && (
                     <nav
                         id="mobile-navigation"
-                        className="sm:hidden pb-3 grid grid-cols-2 gap-2 border-t border-white/5 pt-3"
+                        className="grid grid-cols-2 gap-2 border-t border-white/5 pb-3 pt-3 sm:hidden"
                     >
                         <NavLink
                             href="/scheduler"

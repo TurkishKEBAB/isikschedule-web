@@ -10,6 +10,10 @@
     --surface-800: #1E293B;
     --surface-700: #334155;
     --surface-600: #475569;
+    --page-night: #0B1020;
+    --panel-night: #0E1428;
+    --border-hairline: rgba(255, 255, 255, 0.05);
+    --border-soft: rgba(255, 255, 255, 0.10);
   }
 
   body {
@@ -28,7 +32,8 @@
 @layer components {
   /* Glass panel */
   .glass-panel {
-    @apply bg-surface-800/80 backdrop-blur-md border border-white/5 rounded-lg;
+    @apply rounded-2xl border border-white/5 bg-surface-800/80 shadow-xl shadow-black/20
+           ring-1 ring-inset ring-white/10 backdrop-blur-xl;
   }
 
   /* Subtle hover card */
@@ -160,6 +165,54 @@
   /* One-shot entrance for scheduler grid cells (plays on mount; no persistent
      hidden state, so cells stay visible under reduced-motion / no-JS). */
   .cell-enter { animation: cell-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+  /* Scheduler redesign: keep the dense grid text crisp when browser zoom changes. */
+  .scheduler-grid-card {
+    background: rgba(16, 22, 42, 0.96);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    text-rendering: geometricPrecision;
+  }
+
+  /* Two overlapping native ranges form the class-window control. */
+  .scheduler-window-thumb {
+    pointer-events: none;
+    appearance: none;
+    -webkit-appearance: none;
+    background: transparent;
+  }
+
+  .scheduler-window-thumb::-webkit-slider-runnable-track {
+    background: transparent;
+  }
+
+  .scheduler-window-thumb::-webkit-slider-thumb {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #3B82F6;
+    border-radius: 9999px;
+    background: #ffffff;
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.5);
+    cursor: pointer;
+    pointer-events: auto;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+
+  .scheduler-window-thumb::-moz-range-track {
+    background: transparent;
+  }
+
+  .scheduler-window-thumb::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border: 2px solid #3B82F6;
+    border-radius: 9999px;
+    background: #ffffff;
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.5);
+    cursor: pointer;
+    pointer-events: auto;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

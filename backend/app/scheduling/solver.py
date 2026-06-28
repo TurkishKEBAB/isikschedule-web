@@ -15,8 +15,17 @@ MAX_RETURNED_SCHEDULES = 20
 MAX_VARIANTS_PER_LAYOUT = 5
 QUALITY_WEIGHT = 0.65
 DIVERSITY_WEIGHT = 0.35
-FREE_DAY_BONUS = 15
-GAP_PENALTY = 3
+
+# Displayed score is a 0-100 quality budget split across non-overlapping components
+# whose points sum exactly to `score`. This matches the results UI (donut + "/100" total
+# + per-term breakdown bars), which all read `score` and `score_breakdown` directly.
+CONFLICT_BUDGET = 35
+COVERAGE_BUDGET = 25
+FREE_DAY_BUDGET = 20
+COMPACT_BUDGET = 20
+CONFLICT_PENALTY_PER = 12  # points lost per scheduling conflict (floored at 0)
+FREE_DAY_VALUE = 7  # points earned per free weekday (capped at FREE_DAY_BUDGET)
+GAP_PENALTY_PER = 4  # compactness points lost per intra-day gap hour (floored at 0)
 
 TimeSlot: TypeAlias = tuple[str, int]
 RawTimeSlot: TypeAlias = TimeSlot | list[str | int]
@@ -586,20 +595,20 @@ def _materialize_schedule(
     courses = variants[0]
     total_ects = sum(choice.total_ects for choice in ordered_choices)
     free_days, total_gaps = _free_days_and_gaps(courses)
-    conflict_points = (10 - conflict_count) * 50
-    coverage_points = len(domains) * 20
-    free_day_points = free_days * FREE_DAY_BONUS
-    gap_points = -total_gaps * GAP_PENALTY
-    # Layout quality (free days / gaps) enters the displayed score so that different
-    # weekly layouts of the same course set no longer tie — fixing the "every program
-    # scores the same" problem and giving the diversity selector real score contrast.
-    score = conflict_points + coverage_points + total_ects + free_day_points + gap_points
+    # 0-100 quality score: each component earns points within its own budget and the
+    # four terms sum to `score`. Conflict-free and full coverage form the baseline; free
+    # days and compactness (low gaps) are what actually distinguish layouts of the same
+    # course set, so they drive the ranking / "best match" and the diversity selector.
+    conflict_points = max(0, CONFLICT_BUDGET - conflict_count * CONFLICT_PENALTY_PER)
+    coverage_points = COVERAGE_BUDGET  # solver only returns fully-placed course sets
+    free_day_points = min(FREE_DAY_BUDGET, free_days * FREE_DAY_VALUE)
+    compact_points = max(0, COMPACT_BUDGET - total_gaps * GAP_PENALTY_PER)
+    score = conflict_points + coverage_points + free_day_points + compact_points
     score_breakdown: list[ScoreTerm] = [
         {"key": "conflict", "points": conflict_points},
         {"key": "coverage", "points": coverage_points},
-        {"key": "ects", "points": _clean_number(total_ects)},
         {"key": "free_days", "points": free_day_points},
-        {"key": "gaps", "points": gap_points},
+        {"key": "gaps", "points": compact_points},
     ]
 
     return {

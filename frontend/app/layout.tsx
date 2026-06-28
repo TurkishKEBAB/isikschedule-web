@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     description: 'Işık Üniversitesi öğrencileri için ders programı planlayıcı',
     keywords: ['schedule', 'university', 'course', 'işık', 'timetable'],
     icons: {
-        icon: '/icon.svg',
+        icon: '/brand/app-icon-calendar-flame.png',
     },
 };
 

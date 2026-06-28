@@ -6,10 +6,11 @@ import { Upload, FileCheck, Loader2, ArrowRight } from 'lucide-react';
 import Navbar from '../components/Navbar';
 import { useToast } from '../components/Toast';
 import { UploadDropzone } from '../components/UploadDropzone';
-import { API_BASE_URL } from '../lib/api';
+import { API_BASE_URL, authHeaders } from '../lib/api';
 import { useLanguage } from '../context/LanguageContext';
+import { RequireAuth } from '../context/AuthContext';
 
-export default function UploadPage() {
+function UploadPageContent() {
     const { t } = useLanguage();
     const { toastError } = useToast();
     const [file, setFile] = useState<File | null>(null);
@@ -37,7 +38,11 @@ export default function UploadPage() {
             const formData = new FormData();
             formData.append('file', file);
 
-            const response = await fetch(`${API_BASE_URL}/api/upload`, { method: 'POST', body: formData });
+            const response = await fetch(`${API_BASE_URL}/api/upload`, {
+                method: 'POST',
+                headers: { ...authHeaders() },
+                body: formData,
+            });
             if (!response.ok) throw new Error(t.uploadFailed);
 
             const result = await response.json();
@@ -122,5 +127,15 @@ export default function UploadPage() {
                 )}
             </div>
         </main>
+    );
+}
+
+export default function UploadPage() {
+    // Upload now requires authentication (A5), so gate the page itself:
+    // anonymous visitors are redirected to /login instead of hitting a 401.
+    return (
+        <RequireAuth>
+            <UploadPageContent />
+        </RequireAuth>
     );
 }

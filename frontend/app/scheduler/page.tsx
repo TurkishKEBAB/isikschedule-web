@@ -4,10 +4,10 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import {
-    GraduationCap, Search, FolderOpen, Settings, Rocket, Loader2,
+    Search, FolderOpen, Settings, Rocket, Loader2,
     Lock, Unlock, ChevronLeft, ChevronRight, X, RefreshCw,
     BookOpen, FlaskConical, PenTool, User as UserIcon, Clock,
-    Upload as UploadIcon, FileSpreadsheet, Undo2, Redo2, Download,
+    Upload as UploadIcon, FileSpreadsheet, Undo2, Redo2,
     Printer, CalendarDays, Keyboard, BarChart3, Sparkles, Share2, AlertTriangle,
     SlidersHorizontal
 } from 'lucide-react';
@@ -23,7 +23,8 @@ import { AuroraBackground } from '../components/AuroraBackground';
 import { GeneratedSchedulesView, type Diagnosis } from '../components/GeneratedSchedulesView';
 import { ScheduleHealthBar } from '../components/scheduler/ScheduleHealthBar';
 import { BuildPanel, type SelectedCourseItem, type SchedulerPreferences } from '../components/scheduler/BuildPanel';
-import { API_BASE_URL } from '../lib/api';
+import { BrandLogo } from '../components/BrandLogo';
+import { API_BASE_URL, authHeaders } from '../lib/api';
 import {
     clearSchedulerSnapshot,
     readSchedulerSnapshot,
@@ -107,6 +108,12 @@ const TYPE_STYLES: Record<string, { bg: string; border: string; icon: React.Reac
     lecture: { bg: 'bg-lecture/90', border: 'border-lecture/30', icon: <BookOpen className="w-3 h-3" /> },
     lab: { bg: 'bg-lab/90', border: 'border-lab/30', icon: <FlaskConical className="w-3 h-3" /> },
     ps: { bg: 'bg-ps/90', border: 'border-ps/30', icon: <PenTool className="w-3 h-3" /> },
+};
+
+const DESKTOP_TYPE_STYLES: Record<string, string> = {
+    lecture: 'border-lecture/30 bg-lecture/20 shadow-[inset_3px_0_0_#3B82F6]',
+    lab: 'border-lab/30 bg-lab/20 shadow-[inset_3px_0_0_#8B5CF6]',
+    ps: 'border-ps/30 bg-ps/20 shadow-[inset_3px_0_0_#10B981]',
 };
 
 function getSlotKey(day: string, period: number) {
@@ -349,7 +356,9 @@ async function loadCourseSource(targetFileId: string, uploadLabel?: string | nul
             };
         }
 
-        const response = await fetch(`${API_BASE_URL}/api/upload/${targetFileId}/courses`);
+        const response = await fetch(`${API_BASE_URL}/api/upload/${targetFileId}/courses`, {
+            headers: { ...authHeaders() },
+        });
         if (!response.ok) return null;
 
         const data = await response.json();
@@ -372,6 +381,88 @@ export default function SchedulerPage() {
         }>
             <SchedulerContent />
         </Suspense>
+    );
+}
+
+function BlockedSlotsPanel({
+    lockedSlots,
+    dayAbbr,
+    onToggle,
+    onClear,
+}: {
+    lockedSlots: Set<string>;
+    dayAbbr: Record<string, string>;
+    onToggle: (day: string, period: number) => void;
+    onClear: () => void;
+}) {
+    const { t } = useLanguage();
+    const slots = Array.from(lockedSlots)
+        .map((key) => {
+            const separator = key.lastIndexOf('-');
+            return {
+                key,
+                day: key.slice(0, separator),
+                period: Number(key.slice(separator + 1)),
+            };
+        })
+        .sort((left, right) =>
+            DAYS.indexOf(left.day) - DAYS.indexOf(right.day) ||
+            left.period - right.period
+        );
+
+    if (slots.length === 0) {
+        return (
+            <div className="flex flex-col items-center justify-center px-5 py-10 text-center">
+                <span className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-red-500/10 text-red-300/80">
+                    <Unlock className="h-5 w-5" />
+                </span>
+                <p className="text-sm font-semibold text-slate-200">{t.schedulerNoBlockedTitle}</p>
+                <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
+                    {t.schedulerNoBlockedDescription}
+                </p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-2">
+            <div className="flex items-center justify-between gap-3 px-1 pb-1">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                    {t.schedulerBlockedTimes}
+                </span>
+                <button
+                    type="button"
+                    onClick={onClear}
+                    className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2 py-1 text-[11px] font-medium text-slate-400 transition hover:border-red-400/20 hover:bg-red-500/10 hover:text-red-300"
+                >
+                    <Unlock className="h-3 w-3" />
+                    {t.clearLocks}
+                </button>
+            </div>
+            {slots.map((slot) => (
+                <div
+                    key={slot.key}
+                    className="flex items-center gap-2.5 rounded-xl border border-red-400/20 bg-[repeating-linear-gradient(135deg,rgba(239,68,68,0.07)_0_6px,rgba(255,255,255,0.015)_6px_12px)] px-3 py-2.5"
+                >
+                    <Lock className="h-3.5 w-3.5 shrink-0 text-red-300/80" />
+                    <span className="min-w-0 flex-1">
+                        <span className="block text-xs font-semibold text-white">{dayAbbr[slot.day] || slot.day}</span>
+                        <span className="block font-mono text-[11px] text-slate-400">
+                            {PERIOD_TIMES[slot.period - 1]}-{PERIOD_TIMES[slot.period] || '18:30'}
+                        </span>
+                    </span>
+                    <button
+                        type="button"
+                        onClick={() => onToggle(slot.day, slot.period)}
+                        aria-label={`${t.schedulerUnblockTime}: ${dayAbbr[slot.day] || slot.day} ${PERIOD_TIMES[slot.period - 1]}`}
+                        title={t.schedulerUnblockTime}
+                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/5 text-slate-400 transition hover:bg-red-500/15 hover:text-red-200"
+                    >
+                        <X className="h-3.5 w-3.5" />
+                    </button>
+                </div>
+            ))}
+        </div>
     );
 }
 
@@ -398,6 +489,8 @@ function SchedulerContent() {
     const [sourceMissing, setSourceMissing] = useState(false);
     const [showUploadModal, setShowUploadModal] = useState(false);
     const [showCourseDrawer, setShowCourseDrawer] = useState(false);
+    const [leftPanelOpen, setLeftPanelOpen] = useState(true);
+    const [rightPanelOpen, setRightPanelOpen] = useState(true);
     const [activeMobileDay, setActiveMobileDay] = useState(DAYS[0]);
     const [isUploading, setIsUploading] = useState(false);
     const [hasInitialized, setHasInitialized] = useState(false);
@@ -605,7 +698,11 @@ function SchedulerContent() {
             const formData = new FormData();
             formData.append('file', file);
 
-            const response = await fetch(`${API_BASE_URL}/api/upload`, { method: 'POST', body: formData });
+            const response = await fetch(`${API_BASE_URL}/api/upload`, {
+                method: 'POST',
+                headers: { ...authHeaders() },
+                body: formData,
+            });
             if (!response.ok) {
                 throw new Error(await parseErrorMessage(response, t.uploadFailed));
             }
@@ -1367,11 +1464,7 @@ function SchedulerContent() {
 
             if (key === 'e' || key === 'E') {
                 event.preventDefault();
-                if (window.innerWidth < 1536) {
-                    setShowToolsMenu((prev) => !prev);
-                } else {
-                    setShowExportMenu((prev) => !prev);
-                }
+                setShowToolsMenu((prev) => !prev);
             }
         };
 
@@ -1409,20 +1502,14 @@ function SchedulerContent() {
     return (
         <div className="relative h-screen flex flex-col bg-[#0B1020]">
             <AuroraBackground variant="absolute" vignette={false} className="opacity-75" />
-            <header className="relative z-40 flex-shrink-0 bg-surface-800/80 backdrop-blur-xl border-b border-white/5 px-3 sm:px-4 py-2.5 no-print">
-                <div className="max-w-[1800px] mx-auto flex items-center gap-2 sm:gap-3">
+            <header className="relative z-40 flex-shrink-0 border-b border-white/10 bg-[#0E1428]/85 px-3 py-2.5 shadow-xl shadow-black/20 backdrop-blur-xl no-print sm:px-4">
+                <div className="mx-auto flex max-w-[1800px] items-center gap-2 sm:gap-3">
                     <Link href="/" className="flex items-center gap-2 shrink-0" aria-label="IşıkSchedule">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-isik-blue to-isik-blue-lighter flex items-center justify-center shadow-lg shadow-blue-500/10">
-                            <GraduationCap className="w-4 h-4 text-white" />
-                        </div>
-                        <div className="hidden lg:block">
-                            <span className="block text-base font-bold text-white">IşıkSchedule</span>
-                            {sourceLabel && (
-                                <span className="block max-w-40 truncate text-[11px] text-slate-400">
-                                    {t.activeSource}: {sourceLabel}
-                                </span>
-                            )}
-                        </div>
+                        <BrandLogo
+                            size="sm"
+                            wordmarkClassName="hidden lg:block"
+                            subtitle={sourceLabel ? `${t.activeSource}: ${sourceLabel}` : undefined}
+                        />
                     </Link>
 
                     <div className="ml-auto flex min-w-0 items-center justify-end gap-1.5 sm:gap-2">
@@ -1451,80 +1538,7 @@ function SchedulerContent() {
                             </button>
                         </div>
 
-                        <div className="hidden 2xl:flex items-center gap-1">
-                            <button type="button" onClick={() => setShowUploadModal(true)} className="btn-ghost !py-1.5 !text-xs" aria-label={t.changeFile}>
-                                <FolderOpen className="w-3.5 h-3.5" />
-                                {t.changeFile}
-                            </button>
-
-                            <button type="button" onClick={clearLocks} disabled={!lockedSlots.size} className="btn-ghost !py-1.5 !text-xs" aria-label={t.clearLocks}>
-                                <RefreshCw className="w-3.5 h-3.5" />
-                                {t.clearLocks}
-                            </button>
-
-                            <button type="button" onClick={clearSelection} disabled={!activeCourses.length} className="btn-ghost !py-1.5 !text-xs" aria-label={t.clearSelection}>
-                                <X className="w-3.5 h-3.5" />
-                                {t.clearSelection}
-                            </button>
-
-                            <div className="relative" ref={exportMenuRef}>
-                                <button
-                                    type="button"
-                                    onClick={() => setShowExportMenu((prev) => !prev)}
-                                    disabled={!activeCourses.length}
-                                    aria-label={t.exportMenu}
-                                    aria-expanded={showExportMenu}
-                                    className={`btn-ghost !py-1.5 !text-xs ${showExportMenu ? '!bg-isik-blue-lighter/10 !text-isik-blue-lighter' : ''}`}
-                                    title={`${t.exportMenu} (E)`}
-                                >
-                                    <Download className="w-3.5 h-3.5" />
-                                    {t.exportMenu}
-                                </button>
-
-                                {showExportMenu && (
-                                    <div className="absolute right-0 top-full mt-2 w-60 glass-panel p-1 shadow-2xl shadow-black/40 z-40 animate-fade-in">
-                                        <button type="button" onClick={handleExportIcs} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-200 hover:bg-white/5 transition-colors">
-                                            <CalendarDays className="w-3.5 h-3.5 text-isik-blue-lighter" />
-                                            {t.exportIcal}
-                                        </button>
-                                        <button type="button" onClick={handlePrint} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-200 hover:bg-white/5 transition-colors">
-                                            <Printer className="w-3.5 h-3.5 text-emerald-400" />
-                                            {t.exportPrint}
-                                        </button>
-                                        <button type="button" onClick={handleShareSchedule} disabled={isSharing} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-200 hover:bg-white/5 transition-colors">
-                                            {isSharing ? <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400" /> : <Share2 className="w-3.5 h-3.5 text-blue-400" />}
-                                            {t.schedulerShareAction}
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-
-                            <button
-                                type="button"
-                                onClick={() => setShowStats((prev) => !prev)}
-                                aria-label={t.stats}
-                                className={`btn-ghost !py-1.5 !text-xs ${showStats ? '!bg-isik-blue-lighter/10 !text-isik-blue-lighter' : ''}`}
-                            >
-                                <BarChart3 className="w-3.5 h-3.5" />
-                                {t.stats}
-                            </button>
-
-                            <button type="button" onClick={() => setShowShortcuts(true)} aria-label={t.keyboardShortcuts} className="btn-ghost !p-2" title={`${t.keyboardShortcuts} (?)`}>
-                                <Keyboard className="w-3.5 h-3.5" />
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => setShowSettings(!showSettings)}
-                                aria-label={t.settings}
-                                className={`btn-ghost !py-1.5 !text-xs ${showSettings ? '!bg-isik-gold/10 !text-isik-gold' : ''}`}
-                            >
-                                <Settings className="w-3.5 h-3.5" />
-                                {t.settings}
-                            </button>
-                        </div>
-
-                        <div className="relative 2xl:hidden" ref={toolsMenuRef}>
+                        <div className="relative" ref={toolsMenuRef}>
                             <button
                                 type="button"
                                 onClick={() => setShowToolsMenu((prev) => !prev)}
@@ -1538,7 +1552,7 @@ function SchedulerContent() {
                             </button>
 
                             {showToolsMenu && (
-                                <div id="scheduler-tools-menu" className="absolute right-0 top-full mt-2 w-72 glass-panel p-2 shadow-2xl shadow-black/40 z-50 animate-fade-in">
+                                <div id="scheduler-tools-menu" className="absolute right-0 top-full z-50 mt-2 w-72 glass-panel p-2 shadow-2xl shadow-black/40 animate-fade-in">
                                     <div className="grid grid-cols-2 gap-1">
                                         <ToolMenuButton icon={<FolderOpen className="w-4 h-4 text-blue-300" />} label={t.changeFile} onClick={() => { setShowUploadModal(true); setShowToolsMenu(false); }} />
                                         <ToolMenuButton icon={<Settings className="w-4 h-4 text-amber-300" />} label={t.settings} onClick={() => { setShowSettings((prev) => !prev); setShowToolsMenu(false); }} />
@@ -1569,12 +1583,16 @@ function SchedulerContent() {
                             type="button"
                             onClick={generateSchedules}
                             disabled={isGenerating || activeCourses.length === 0}
-                            className="btn-primary magnetic shrink-0 !px-3 sm:!px-4 !py-2 !text-xs"
+                            className="btn-secondary shrink-0 !px-3 !py-2 !text-xs sm:!px-4"
                         >
                             {isGenerating ? (
                                 <><Loader2 className="w-3.5 h-3.5 animate-spin" /><span className="hidden sm:inline">{t.creating}</span></>
                             ) : (
-                                <><Rocket className="w-3.5 h-3.5" /><span className="hidden sm:inline">{t.createSchedule}</span><span className="sm:hidden">{t.generateShort}</span></>
+                                <>
+                                    {schedules.length > 0 ? <RefreshCw className="w-3.5 h-3.5" /> : <Rocket className="w-3.5 h-3.5" />}
+                                    <span className="hidden sm:inline">{schedules.length > 0 ? t.schedulerRegenerate : t.generateShort}</span>
+                                    <span className="sm:hidden">{t.generateShort}</span>
+                                </>
                             )}
                         </button>
                     </div>
@@ -1602,7 +1620,38 @@ function SchedulerContent() {
             )}
 
             <div className="flex-1 flex overflow-hidden">
-                <div className="hidden lg:flex w-80 flex-shrink-0 bg-surface-800/50 border-r border-white/5 flex-col no-print">
+                {!leftPanelOpen && (
+                    <aside className="no-print hidden w-[50px] shrink-0 flex-col items-center gap-4 border-r border-white/5 bg-[#0E1428]/65 py-3 backdrop-blur-xl lg:flex">
+                        <button
+                            type="button"
+                            onClick={() => setLeftPanelOpen(true)}
+                            aria-label={t.schedulerShowCourses}
+                            title={t.schedulerShowCourses}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-slate-400 transition hover:bg-white/[0.08] hover:text-white"
+                        >
+                            <ChevronRight className="h-4 w-4" />
+                        </button>
+                        <Search className="h-4 w-4 text-slate-500" />
+                        <span className="rotate-180 [writing-mode:vertical-rl] text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                            {t.schedulerCoursesTitle}
+                        </span>
+                    </aside>
+                )}
+                <aside className={`${leftPanelOpen ? 'hidden lg:flex' : 'hidden'} no-print w-[312px] shrink-0 flex-col border-r border-white/5 bg-[#0E1428]/65 backdrop-blur-xl`}>
+                    <div className="flex items-center justify-between border-b border-white/5 px-3 py-2.5">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                            {t.schedulerCoursesTitle}
+                        </span>
+                        <button
+                            type="button"
+                            onClick={() => setLeftPanelOpen(false)}
+                            aria-label={t.schedulerHideCourses}
+                            title={t.schedulerHideCourses}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition hover:bg-white/5 hover:text-white"
+                        >
+                            <ChevronLeft className="h-4 w-4" />
+                        </button>
+                    </div>
                     <div className="p-3 border-b border-white/5 space-y-3">
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
@@ -1651,72 +1700,87 @@ function SchedulerContent() {
                                 ))}
                         </div>
 
-                        <div>
-                            <label htmlFor="scheduler-academic-unit" className="text-[11px] font-medium uppercase tracking-wider text-slate-400 block mb-1.5">
-                                {t.academicUnit}
-                            </label>
-                            <select
-                                id="scheduler-academic-unit"
-                                value={selectedAcademicUnit}
-                                onChange={(event) => setSelectedAcademicUnit(event.target.value)}
-                                className="input-field !py-2 !text-sm"
-                            >
-                                <option value="all">{t.allAcademicUnits}</option>
-                                {academicUnitOptions.map((option) => (
-                                    <option key={option.academicUnit} value={option.academicUnit}>
-                                        {option.academicUnit} ({option.totalCount})
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
+                        {courseFilter !== 'blocked' && (
+                            <>
+                                <div>
+                                    <label htmlFor="scheduler-academic-unit" className="text-[11px] font-medium uppercase tracking-wider text-slate-400 block mb-1.5">
+                                        {t.academicUnit}
+                                    </label>
+                                    <select
+                                        id="scheduler-academic-unit"
+                                        value={selectedAcademicUnit}
+                                        onChange={(event) => setSelectedAcademicUnit(event.target.value)}
+                                        className="input-field !py-2 !text-sm"
+                                    >
+                                        <option value="all">{t.allAcademicUnits}</option>
+                                        {academicUnitOptions.map((option) => (
+                                            <option key={option.academicUnit} value={option.academicUnit}>
+                                                {option.academicUnit} ({option.totalCount})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
 
-                        <div>
-                            <label htmlFor="scheduler-code-group" className="text-[11px] font-medium uppercase tracking-wider text-slate-400 block mb-1.5">
-                                {t.codeGroup}
-                            </label>
-                            <select
-                                id="scheduler-code-group"
-                                value={selectedPrefix}
-                                onChange={(event) => setSelectedPrefix(event.target.value)}
-                                className="input-field !py-2 !text-sm"
-                            >
-                                <option value="all">{t.allCodeGroups}</option>
-                                {prefixOptions.map((option) => (
-                                    <option key={option.prefix} value={option.prefix}>
-                                        {option.prefix} ({option.totalCount})
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div className={instructorOptions.length > 0 ? '' : 'col-span-2'}>
+                                        <label htmlFor="scheduler-code-group" className="text-[11px] font-medium uppercase tracking-wider text-slate-400 block mb-1.5">
+                                            {t.codeGroup}
+                                        </label>
+                                        <select
+                                            id="scheduler-code-group"
+                                            value={selectedPrefix}
+                                            onChange={(event) => setSelectedPrefix(event.target.value)}
+                                            className="input-field !py-2 !text-sm"
+                                        >
+                                            <option value="all">{t.allCodeGroups}</option>
+                                            {prefixOptions.map((option) => (
+                                                <option key={option.prefix} value={option.prefix}>
+                                                    {option.prefix} ({option.totalCount})
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
 
-                        {instructorOptions.length > 0 && (
-                            <div>
-                                <label htmlFor="scheduler-instructor" className="text-[11px] font-medium uppercase tracking-wider text-slate-400 block mb-1.5">
-                                    {t.instructor}
-                                </label>
-                                <select
-                                    id="scheduler-instructor"
-                                    value={selectedInstructor}
-                                    onChange={(event) => setSelectedInstructor(event.target.value)}
-                                    className="input-field !py-2 !text-sm"
-                                >
-                                    <option value="all">{t.allInstructors}</option>
-                                    {instructorOptions.map((option) => (
-                                        <option key={option.teacher} value={option.teacher}>
-                                            {option.teacher} ({option.count})
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
+                                    {instructorOptions.length > 0 && (
+                                        <div>
+                                            <label htmlFor="scheduler-instructor" className="text-[11px] font-medium uppercase tracking-wider text-slate-400 block mb-1.5">
+                                                {t.instructor}
+                                            </label>
+                                            <select
+                                                id="scheduler-instructor"
+                                                value={selectedInstructor}
+                                                onChange={(event) => setSelectedInstructor(event.target.value)}
+                                                className="input-field !py-2 !text-sm"
+                                            >
+                                                <option value="all">{t.allInstructors}</option>
+                                                {instructorOptions.map((option) => (
+                                                    <option key={option.teacher} value={option.teacher}>
+                                                        {option.teacher} ({option.count})
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="flex justify-between text-[11px] text-slate-400 px-1">
+                                    <span>{selectedCount} {t.coursesSelected}</span>
+                                    <span>{totalEcts} {t.ects}</span>
+                                </div>
+                            </>
                         )}
-
-                        <div className="flex justify-between text-[11px] text-slate-400 px-1">
-                            <span>{selectedCount} {t.coursesSelected}</span>
-                            <span>{totalEcts} {t.ects}</span>
-                        </div>
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                        {courseFilter === 'blocked' ? (
+                            <BlockedSlotsPanel
+                                lockedSlots={lockedSlots}
+                                dayAbbr={DAY_ABBR}
+                                onToggle={toggleLock}
+                                onClear={clearLocks}
+                            />
+                        ) : (
+                            <>
                         {allCourses.length === 0 ? (
                             <div className="text-center py-12 px-4">
                                 <FileSpreadsheet className="w-10 h-10 text-slate-400 mx-auto mb-3" />
@@ -1801,8 +1865,10 @@ function SchedulerContent() {
                                 <p>{t.tipCreateAlternatives}</p>
                             </div>
                         </div>
+                            </>
+                        )}
                     </div>
-                </div>
+                </aside>
 
                 <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
                 <div className="flex-1 overflow-auto p-3 md:p-4 print-area">
@@ -1821,7 +1887,7 @@ function SchedulerContent() {
                             </span>
                         </button>
                     </div>
-                    <div className="glass-panel overflow-hidden min-h-full">
+                    <div className="scheduler-grid-card min-h-full overflow-hidden rounded-2xl border border-white/5 shadow-2xl shadow-black/30 ring-1 ring-inset ring-white/5">
                         <div className="px-4 py-3 border-b border-white/5 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
                             <div>
                                 <h3 className="text-sm font-semibold text-white">
@@ -1902,7 +1968,7 @@ function SchedulerContent() {
                                                                 key={`${day}-${period}`}
                                                                 onPointerDown={(event) => handlePaintStart(event, day, period, occupied)}
                                                                 onPointerEnter={() => handlePaintEnter(day, period)}
-                                                                className={`p-0.5 border-r border-white/[0.03] relative group select-none ${occupied ? '' : 'cursor-cell'} ${isLocked ? 'bg-red-500/5' : ''}`}
+                                                                className={`group relative select-none border-r border-white/[0.03] p-0.5 ${occupied ? '' : 'cursor-cell'} ${isLocked ? 'bg-[repeating-linear-gradient(135deg,rgba(239,68,68,0.06)_0_6px,transparent_6px_12px)]' : ''}`}
                                                                 style={{ height: '52px' }}
                                                             >
                                                                 <button
@@ -1921,26 +1987,32 @@ function SchedulerContent() {
 
                                                                 {isLocked ? (
                                                                     <div className="h-full flex items-center justify-center">
-                                                                        <div className="w-1.5 h-1.5 rounded-full bg-red-400/40" />
+                                                                        <Lock className="h-3 w-3 text-red-300/50" />
+                                                                    </div>
+                                                                ) : courses.length > 0 ? (
+                                                                    <div className="grid-slot-courses flex h-full min-h-[47px] gap-0.5">
+                                                                        {courses.map((course) => {
+                                                                            const style = TYPE_STYLES[course.type] || TYPE_STYLES.lecture;
+                                                                            const desktopStyle = DESKTOP_TYPE_STYLES[course.type] || DESKTOP_TYPE_STYLES.lecture;
+                                                                            return (
+                                                                                <button
+                                                                                    type="button"
+                                                                                    key={course.code}
+                                                                                    onClick={() => setSelectedCourse(course)}
+                                                                                    title={`${course.code} - ${course.name}${course.teacher ? ` - ${course.teacher}` : ''}`}
+                                                                                    className={`cell-enter flex min-w-0 flex-1 cursor-pointer items-center rounded-md border px-2 text-left text-xs transition-all hover:brightness-125 ${desktopStyle} ${hasConflict ? 'ring-1 ring-inset ring-red-500/60' : ''}`}
+                                                                                >
+                                                                                    <span className="flex min-w-0 flex-1 items-center gap-1.5 font-semibold text-white">
+                                                                                        <span className="shrink-0">{style.icon}</span>
+                                                                                        <span className="truncate">{course.code}</span>
+                                                                                        {hasConflict && <AlertTriangle className="ml-auto h-3 w-3 shrink-0 text-red-100" aria-hidden="true" />}
+                                                                                    </span>
+                                                                                </button>
+                                                                            );
+                                                                        })}
                                                                     </div>
                                                                 ) : (
-                                                                    courses.map((course) => {
-                                                                        const style = TYPE_STYLES[course.type] || TYPE_STYLES.lecture;
-                                                                        return (
-                                                                            <button
-                                                                                type="button"
-                                                                                key={course.code}
-                                                                                onClick={() => setSelectedCourse(course)}
-                                                                                className={`cell-enter block w-full text-left p-1 rounded-md text-[10px] cursor-pointer transition-all hover:brightness-110 border ${hasConflict ? 'border-red-500/50' : style.border} ${style.bg} mb-0.5`}
-                                                                            >
-                                                                                <span className="flex items-center gap-1 font-semibold text-white truncate">
-                                                                                    {style.icon}
-                                                                                    <span className="truncate">{course.code}</span>
-                                                                                    {hasConflict && <AlertTriangle className="ml-auto h-3 w-3 shrink-0 text-red-100" aria-hidden="true" />}
-                                                                                </span>
-                                                                            </button>
-                                                                        );
-                                                                    })
+                                                                    <div className="h-full" />
                                                                 )}
                                                             </td>
                                                         );
@@ -2070,6 +2142,8 @@ function SchedulerContent() {
                     onGenerate={generateSchedules}
                     isGenerating={isGenerating}
                     canGenerate={activeCourses.length > 0}
+                    isOpen={rightPanelOpen}
+                    onToggleOpen={() => setRightPanelOpen((open) => !open)}
                 />
             </div>
 

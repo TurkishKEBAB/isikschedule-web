@@ -10,8 +10,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from slowapi.errors import RateLimitExceeded
+
 from app.config import settings
 from app.api.routes import upload, generate, schedules, health, auth, admin, courses, friends
+from app.core.rate_limit import limiter
 from app.models.database import init_db, create_admin_user
 
 logging.basicConfig(
@@ -47,6 +50,10 @@ app = FastAPI(
     redoc_url="/redoc",
     lifespan=lifespan,
 )
+
+# Rate limiting (slowapi). The limiter instance lives in app.core.rate_limit;
+# Starlette needs it on app.state for the exception handler to resolve it.
+app.state.limiter = limiter
 
 # CORS Middleware
 # Phase 1.8: dev keeps the permissive wildcard behavior (configured via
@@ -87,6 +94,18 @@ async def root():
         "status": "running",
         "docs": "/docs",
     }
+
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request, exc: RateLimitExceeded):
+    """Return a 429 in the same {error, message} shape as other errors (K6)."""
+    return JSONResponse(
+        status_code=429,
+        content={
+            "error": "Too many requests",
+            "message": "Rate limit exceeded. Please slow down and try again shortly.",
+        },
+    )
 
 
 @app.exception_handler(Exception)

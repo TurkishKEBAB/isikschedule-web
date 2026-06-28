@@ -1,0 +1,185 @@
+name: Codex Agent
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codex-agent-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  codex:
+    name: Run Codex and produce patch
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    if: github.event.label.name == 'agent:codex'
+    permissions:
+      contents: read
+      issues: read
+
+    outputs:
+      has_changes: ${{ steps.diff.outputs.has_changes }}
+      final_message: ${{ steps.run_codex.outputs.final-message }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          ref: master
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Build Codex prompt from issue
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+        run: |
+          {
+            echo "Work on this GitHub issue in TurkishKEBAB/isikschedule-web."
+            echo
+            echo "Issue #${ISSUE_NUMBER}: ${ISSUE_TITLE}"
+            echo "URL: ${ISSUE_URL}"
+            echo
+            echo "Instructions:"
+            echo "- Follow AGENTS.md and the closest repository guidance."
+            echo "- Make the smallest code/doc changes that satisfy the issue."
+            echo "- Run the relevant tests or explain why they could not run."
+            echo "- Do not commit, push, or open a PR yourself; this workflow will turn your patch into a draft PR."
+            echo "- If the issue is ambiguous, make a conservative implementation and note assumptions in the final message."
+            echo
+            echo "Issue body:"
+            printf '%s\n' "${ISSUE_BODY}"
+          } > .codex-issue-prompt.md
+
+      - name: Run Codex
+        id: run_codex
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: .codex-issue-prompt.md
+          output-file: codex-output.md
+          sandbox: workspace-write
+
+      - name: Capture patch
+        id: diff
+        run: |
+          git add -N .
+          if git diff --quiet -- . ':!.codex-issue-prompt.md' ':!codex-output.md'; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            : > codex.patch
+          else
+            git diff --binary -- . ':!.codex-issue-prompt.md' ':!codex-output.md' > codex.patch
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          fi
+          test -f codex-output.md || : > codex-output.md
+
+      - name: Upload Codex artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: codex-issue-${{ github.event.issue.number }}-${{ github.run_id }}
+          path: |
+            codex.patch
+            codex-output.md
+          if-no-files-found: error
+
+  create-pr:
+    name: Create draft PR from Codex patch
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: codex
+    if: needs.codex.outputs.has_changes == 'true'
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: Download Codex artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: codex-issue-${{ github.event.issue.number }}-${{ github.run_id }}
+
+      - name: Apply patch and open draft PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          branch="ai/codex-issue-${ISSUE_NUMBER}-${GITHUB_RUN_ID}"
+          git checkout -b "$branch"
+          git apply --binary codex.patch
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Codex: work on issue #${ISSUE_NUMBER}"
+          git push origin "$branch"
+
+          {
+            echo "## Codex draft PR"
+            echo
+            echo "Issue: #${ISSUE_NUMBER}"
+            echo "Source: ${ISSUE_URL}"
+            echo "Workflow run: ${RUN_URL}"
+            echo
+            echo "## Codex final message"
+            echo
+            sed -e 's/\r$//' codex-output.md | head -c 12000
+            echo
+            echo
+            echo "## Human review checklist"
+            echo
+            echo "- [ ] Review the diff carefully."
+            echo "- [ ] Confirm relevant tests passed or run them locally."
+            echo "- [ ] Remove the draft status only after human approval."
+          } > pr-body.md
+
+          pr_url=$(gh pr create \
+            --draft \
+            --base master \
+            --head "$branch" \
+            --title "Codex: issue #${ISSUE_NUMBER} - ${ISSUE_TITLE}" \
+            --body-file pr-body.md)
+
+          gh issue comment "$ISSUE_NUMBER" --body "Codex created a draft PR: ${pr_url}"
+
+  no-changes:
+    name: Comment when Codex produced no patch
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: codex
+    if: needs.codex.outputs.has_changes == 'false'
+    permissions:
+      issues: write
+
+    steps:
+      - name: Comment on issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          CODEX_MESSAGE: ${{ needs.codex.outputs.final_message }}
+        run: |
+          {
+            echo "Codex ran for this issue but did not produce a patch."
+            echo
+            echo "Final message:"
+            echo
+            printf '%s\n' "${CODEX_MESSAGE}"
+          } > comment.md
+          gh issue comment "$ISSUE_NUMBER" --body-file comment.md

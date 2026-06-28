@@ -2,9 +2,11 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, GraduationCap, Mail, Lock, Loader2, Eye, EyeOff } from 'lucide-react';
+import { ArrowRight, Mail, Lock, Loader2, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { LanguageSwitcher, useLanguage } from '../context/LanguageContext';
+import { AuroraBackground } from '../components/AuroraBackground';
+import { BrandLogo } from '../components/BrandLogo';
 
 export default function RegisterPage() {
     const { register } = useAuth();
@@ -41,21 +43,18 @@ export default function RegisterPage() {
     };
 
     return (
-        <div className="min-h-screen bg-surface-900 flex items-center justify-center p-4 relative overflow-hidden">
+        <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-surface-900 p-4">
+            <AuroraBackground variant="absolute" vignette={false} className="opacity-80" />
             <div className="absolute right-4 top-4 z-10">
                 <LanguageSwitcher />
             </div>
 
-            <div className="relative w-full max-w-sm">
-                <div className="text-center mb-8">
-                    <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-isik-blue to-isik-blue-lighter shadow-xl shadow-blue-500/20 mb-4">
-                        <GraduationCap className="w-7 h-7 text-white" />
-                    </div>
-                    <h1 className="text-2xl font-bold text-white">IşıkSchedule</h1>
-                    <p className="text-sm text-slate-400 mt-1">{t.registerProductSubtitle}</p>
+            <div className="relative z-[1] w-full max-w-sm">
+                <div className="mb-8 flex justify-center text-center">
+                    <BrandLogo size="lg" priority subtitle={t.registerProductSubtitle} />
                 </div>
 
-                <div className="glass-panel p-6">
+                <div className="glass-panel border-white/10 bg-surface-800/80 p-6 shadow-2xl shadow-black/40 backdrop-blur-xl">
                     <h2 className="text-lg font-semibold text-white text-center mb-6">{t.registerTitle}</h2>
 
                     {error && (
