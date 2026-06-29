@@ -64,8 +64,8 @@ export function LockingTooltip({
 
     const triggerRef = useRef<HTMLSpanElement | null>(null);
     const tipRef = useRef<HTMLDivElement | null>(null);
-    const openTimer = useRef<number>();
-    const closeTimer = useRef<number>();
+    const openTimer = useRef<number | undefined>(undefined);
+    const closeTimer = useRef<number | undefined>(undefined);
     const overTrigger = useRef(false);
     const overTip = useRef(false);
     const tipId = useId();
@@ -244,7 +244,7 @@ export function InfoTerm({ children, tip }: InfoTermProps) {
     const [coords, setCoords] = useState<Coords | null>(null);
     const ref = useRef<HTMLButtonElement | null>(null);
     const tipRef = useRef<HTMLDivElement | null>(null);
-    const timer = useRef<number>();
+    const timer = useRef<number | undefined>(undefined);
     const tipId = useId();
 
     const reposition = useCallback(() => {

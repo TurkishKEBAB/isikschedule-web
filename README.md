@@ -15,14 +15,14 @@
 | Component | Technology |
 |-----------|------------|
 | Backend | FastAPI, Python 3.12 |
-| Frontend | Next.js 14, React, TailwindCSS |
+| Frontend | Next.js 16, React 19, TailwindCSS |
 | Database | SQLite |
 
 ## Quick Start
 
 ### Prerequisites
 - Docker & Docker Compose
-- Node.js 18+ (for local frontend dev)
+- Node.js 20.9+ (for local frontend dev)
 - Python 3.12+ (for local backend dev)
 
 ### Development with Docker
