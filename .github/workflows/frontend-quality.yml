@@ -1,0 +1,53 @@
+name: Frontend Quality
+
+on:
+  push:
+    branches: ["master"]
+  pull_request:
+    branches: ["master"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_PUBLIC_API_URL: https://api.isikschedule.yigiokur.me
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Audit high severity dependencies
+        working-directory: frontend
+        run: npm audit --audit-level=high
+
+      - name: Run lint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Run build
+        working-directory: frontend
+        run: npm run build
+
+      - name: Run design contract
+        working-directory: frontend
+        run: npm run test:design
