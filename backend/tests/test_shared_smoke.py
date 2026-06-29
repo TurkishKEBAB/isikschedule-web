@@ -11,7 +11,11 @@ def _seed_user(client):
     """Anonymous share currently requires at least one user in DB."""
     response = client.post(
         "/api/auth/register",
-        json={"email": "owner@isik.edu.tr", "password": "owner-pw-1"},
+        json={
+            "email": "owner@isik.edu.tr",
+            "password": "owner-pw-1",
+            "accepted_terms": True,
+        },
     )
     assert response.status_code == 200, response.text
 

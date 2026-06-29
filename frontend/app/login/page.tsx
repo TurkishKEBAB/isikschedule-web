@@ -153,6 +153,12 @@ export default function LoginPage() {
                             {t.loginRegisterLink}
                         </Link>
                     </div>
+
+                    <div className="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                        <Link href="/privacy" className="hover:text-slate-300">{t.legalPrivacyLink}</Link>
+                        <span aria-hidden="true">/</span>
+                        <Link href="/terms" className="hover:text-slate-300">{t.legalTermsLink}</Link>
+                    </div>
                 </div>
 
                 <p className="text-center text-xs text-slate-400 mt-6">

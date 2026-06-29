@@ -170,7 +170,14 @@ export default function Home() {
                         <BrandLogo size="sm" showWordmark={false} />
                         <span>© 2026 IşıkSchedule</span>
                     </div>
-                    <p className="text-center text-sm text-slate-400 sm:text-right">{t.homeFooterText}</p>
+                    <div className="flex flex-col items-center gap-2 sm:items-end">
+                        <p className="text-center text-sm text-slate-400 sm:text-right">{t.homeFooterText}</p>
+                        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                            <Link href="/privacy" className="hover:text-slate-300">{t.legalPrivacyLink}</Link>
+                            <span aria-hidden="true">/</span>
+                            <Link href="/terms" className="hover:text-slate-300">{t.legalTermsLink}</Link>
+                        </div>
+                    </div>
                 </div>
             </footer>
         </main>
