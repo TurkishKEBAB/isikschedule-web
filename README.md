@@ -57,6 +57,37 @@ npm install
 npm run dev
 ```
 
+## Production API Contract
+
+Production uses one API access model: **absolute backend API domain + backend CORS**.
+Do not use a frontend `/api` rewrite/proxy in production.
+
+Recommended `yigiokur.me` subdomains:
+
+| Service | Domain |
+|---------|--------|
+| Frontend | `https://isikschedule.yigiokur.me` |
+| Backend API | `https://api.isikschedule.yigiokur.me` |
+
+Frontend production env:
+
+```bash
+NEXT_PUBLIC_API_URL=https://api.isikschedule.yigiokur.me
+```
+
+The frontend build/start fails fast in production if `NEXT_PUBLIC_API_URL` is missing.
+Local development can omit it and will use `http://localhost:8000`.
+
+Backend production env:
+
+```bash
+APP_ENV=production
+CORS_ORIGINS=https://isikschedule.yigiokur.me
+```
+
+In production, backend startup rejects localhost, wildcard, empty, or non-HTTPS
+`CORS_ORIGINS`. This keeps the browser API target and backend CORS policy aligned.
+
 ## Project Structure
 
 ```

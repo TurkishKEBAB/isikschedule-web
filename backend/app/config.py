@@ -4,6 +4,7 @@ Application configuration using pydantic-settings.
 
 from functools import lru_cache
 from typing import Any, List
+from urllib.parse import urlparse
 
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -106,6 +107,15 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "ADMIN_EMAIL and ADMIN_PASSWORD must be overridden in production."
                 )
+            if not self.CORS_ORIGINS:
+                raise ValueError("CORS_ORIGINS must be set in production.")
+            for origin in self.CORS_ORIGINS:
+                parsed = urlparse(origin)
+                hostname = (parsed.hostname or "").lower()
+                if origin == "*" or parsed.scheme != "https" or hostname in {"localhost", "127.0.0.1"}:
+                    raise ValueError(
+                        "CORS_ORIGINS must contain only explicit public https origins in production."
+                    )
         return self
 
     @property
