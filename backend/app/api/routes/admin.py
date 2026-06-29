@@ -4,21 +4,22 @@ Global Excel upload and user management.
 """
 
 import json
+import re
+import uuid
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import List
-import shutil
 from pathlib import Path
 
+from ...config import settings
 from ...models.database import get_db, User, GlobalCourse
 from ...core.auth import get_current_admin
 from ...core.excel_loader import process_excel
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
-UPLOAD_DIR = Path("uploads")
-UPLOAD_DIR.mkdir(exist_ok=True)
+_SEMESTER_RE = re.compile(r"^[A-Za-z0-9-]+$")
 
 
 class SemesterResponse(BaseModel):
@@ -52,48 +53,56 @@ async def upload_semester(
     admin: User = Depends(get_current_admin)
 ):
     """Upload global Excel file for a semester. Only admin can do this."""
-    # Validate file
-    if not file.filename.endswith(('.xlsx', '.xls')):
-        raise HTTPException(status_code=400, detail="File must be Excel (.xlsx or .xls)")
-    
-    # Save file
-    file_path = UPLOAD_DIR / f"global_{semester}_{file.filename}"
+    if not _SEMESTER_RE.fullmatch(semester):
+        raise HTTPException(status_code=400, detail="Invalid semester")
+
+    filename = file.filename or ""
+    if not filename:
+        raise HTTPException(status_code=400, detail="Filename is required")
+
+    if Path(filename).suffix.lower() != ".xlsx":
+        raise HTTPException(status_code=400, detail="File must be Excel (.xlsx)")
+
+    content = await file.read()
+    upload_dir = Path(settings.UPLOAD_DIR)
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    file_path = upload_dir / f"{uuid.uuid4()}.xlsx"
     with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-    
+        buffer.write(content)
+
     try:
         # Process Excel
         courses = process_excel(str(file_path))
-        
-        if not courses:
-            raise HTTPException(status_code=400, detail="No courses found in file")
-        
-        # Deactivate previous semesters
-        db.query(GlobalCourse).update({"is_active": False})
-        
-        # Save to database
-        global_course = GlobalCourse(
-            semester=semester,
-            courses_json=json.dumps(courses, ensure_ascii=False),
-            uploaded_by=admin.id,
-            is_active=True
-        )
-        db.add(global_course)
-        db.commit()
-        db.refresh(global_course)
-        
-        return {
-            "message": f"Successfully uploaded {len(courses)} courses for {semester}",
-            "semester": semester,
-            "course_count": len(courses),
-            "id": global_course.id
-        }
-        
     except Exception as e:
-        # Clean up file on error
         if file_path.exists():
             file_path.unlink()
-        raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Error processing file: {str(e)}")
+
+    if not courses:
+        if file_path.exists():
+            file_path.unlink()
+        raise HTTPException(status_code=400, detail="No courses found in file")
+
+    # Deactivate previous semesters
+    db.query(GlobalCourse).update({"is_active": False})
+
+    # Save to database
+    global_course = GlobalCourse(
+        semester=semester,
+        courses_json=json.dumps(courses, ensure_ascii=False),
+        uploaded_by=admin.id,
+        is_active=True
+    )
+    db.add(global_course)
+    db.commit()
+    db.refresh(global_course)
+
+    return {
+        "message": f"Successfully uploaded {len(courses)} courses for {semester}",
+        "semester": semester,
+        "course_count": len(courses),
+        "id": global_course.id
+    }
 
 
 @router.get("/semesters", response_model=List[SemesterResponse])
