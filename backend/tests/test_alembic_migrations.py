@@ -1,10 +1,12 @@
 """Alembic migration smoke tests."""
 
+import logging
 from pathlib import Path
 
 import sqlalchemy as sa
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 
 from app.models import database
 
@@ -17,6 +19,12 @@ def _alembic_config(database_url: str) -> Config:
     config.set_main_option("script_location", str(BACKEND_DIR / "alembic"))
     config.set_main_option("sqlalchemy.url", database_url)
     return config
+
+
+def _current_alembic_head(config: Config) -> str:
+    head = ScriptDirectory.from_config(config).get_current_head()
+    assert head is not None
+    return head
 
 
 def _sqlite_url(path: Path) -> str:
@@ -53,7 +61,7 @@ def test_alembic_upgrade_creates_current_schema_from_empty_sqlite(tmp_path):
 
     with engine.connect() as conn:
         version = conn.execute(sa.text("select version_num from alembic_version")).scalar_one()
-    assert version == "20260701_0001"
+    assert version == _current_alembic_head(_alembic_config(_sqlite_url(db_path)))
 
 
 def test_alembic_upgrade_baselines_existing_dev_sqlite_db(tmp_path):
@@ -108,7 +116,27 @@ def test_alembic_upgrade_baselines_existing_dev_sqlite_db(tmp_path):
         assert conn.execute(sa.text("select count(*) from users")).scalar_one() == 1
         assert conn.execute(sa.text("select count(*) from saved_schedules")).scalar_one() == 1
         version = conn.execute(sa.text("select version_num from alembic_version")).scalar_one()
-    assert version == "20260701_0001"
+    assert version == _current_alembic_head(_alembic_config(_sqlite_url(db_path)))
+
+
+def test_alembic_upgrade_preserves_existing_application_loggers(tmp_path):
+    db_path = tmp_path / "logging.db"
+    app_logger = logging.getLogger("isikschedule")
+    previous_disabled = app_logger.disabled
+    app_logger.disabled = False
+
+    try:
+        command.upgrade(_alembic_config(_sqlite_url(db_path)), "head")
+        assert app_logger.disabled is False
+    finally:
+        app_logger.disabled = previous_disabled
+
+
+def test_backend_dockerfile_copies_alembic_assets():
+    dockerfile = (BACKEND_DIR / "Dockerfile").read_text(encoding="utf-8")
+
+    assert "COPY alembic.ini ." in dockerfile
+    assert "COPY alembic/ ./alembic/" in dockerfile
 
 
 def test_init_db_runs_alembic_migrations_instead_of_create_all(monkeypatch):
@@ -120,7 +148,7 @@ def test_init_db_runs_alembic_migrations_instead_of_create_all(monkeypatch):
     def fail_create_all(**_kwargs):
         raise AssertionError("init_db should run Alembic migrations, not create_all")
 
-    monkeypatch.setattr(database, "run_migrations", record_migration, raising=False)
+    monkeypatch.setattr(database, "run_migrations", record_migration)
     monkeypatch.setattr(database.Base.metadata, "create_all", fail_create_all)
 
     database.init_db()
