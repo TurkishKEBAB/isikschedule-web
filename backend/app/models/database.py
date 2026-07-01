@@ -1,12 +1,15 @@
 """
 Database models for IşıkSchedule.
-Uses SQLite with SQLAlchemy ORM.
+Uses SQLite with SQLAlchemy ORM and Alembic migrations.
 """
 
+from pathlib import Path
 from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, ForeignKey, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime, timezone
+from alembic import command
+from alembic.config import Config
 
 from ..config import settings
 
@@ -115,27 +118,22 @@ def get_db():
 
 
 def init_db():
-    """Initialize database tables."""
-    Base.metadata.create_all(bind=engine)
-    _ensure_consent_columns()
-    print("Database tables created.")
+    """Apply database migrations."""
+    run_migrations()
+    print("Database migrations applied.")
 
 
-def _ensure_consent_columns():
-    """Add consent columns to existing SQLite databases.
+def _alembic_config() -> Config:
+    backend_dir = Path(__file__).resolve().parents[2]
+    config = Config(str(backend_dir / "alembic.ini"))
+    config.set_main_option("script_location", str(backend_dir / "alembic"))
+    config.set_main_option("sqlalchemy.url", DATABASE_URL)
+    return config
 
-    The project does not have Alembic yet, so create_all() will not alter an
-    existing data.db. Keep this narrow and idempotent until migrations exist.
-    """
-    if not DATABASE_URL.startswith("sqlite"):
-        return
 
-    with engine.begin() as conn:
-        columns = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(users)")}
-        if "kvkk_consent_at" not in columns:
-            conn.exec_driver_sql("ALTER TABLE users ADD COLUMN kvkk_consent_at DATETIME")
-        if "consent_version" not in columns:
-            conn.exec_driver_sql("ALTER TABLE users ADD COLUMN consent_version VARCHAR(32)")
+def run_migrations():
+    """Upgrade the configured database to the latest Alembic revision."""
+    command.upgrade(_alembic_config(), "head")
 
 
 def create_admin_user():
