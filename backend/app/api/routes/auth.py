@@ -3,13 +3,18 @@ Authentication API routes.
 Login, register, and user management.
 """
 
-from datetime import timedelta
+import json
+import logging
+from datetime import datetime, timedelta
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
+from sqlalchemy import or_
+from sqlalchemy.orm import Session
 
 from ...config import CONSENT_VERSION, settings
-from ...models.database import _utcnow, get_db, User
+from ...models.database import _utcnow, Friendship, get_db, GlobalCourse, SavedSchedule, User
 from ...core.auth import (
     authenticate_user,
     create_access_token,
@@ -19,6 +24,20 @@ from ...core.auth import (
 )
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+log = logging.getLogger("isikschedule")
+
+DATA_EXPORT_SCHEMA_VERSION = "2026-07-02"
+
+
+def _isoformat(value: datetime | None) -> str | None:
+    return value.isoformat() if value else None
+
+
+def _json_value(raw_json: str) -> Any:
+    try:
+        return json.loads(raw_json)
+    except json.JSONDecodeError:
+        return raw_json
 
 
 # Request/Response models
@@ -141,6 +160,103 @@ async def get_me(current_user: User = Depends(get_current_user)):
         role=current_user.role,
         created_at=current_user.created_at.isoformat()
     )
+
+
+@router.get("/me/export")
+async def export_me(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Export the authenticated user's personal data."""
+    saved_schedules = (
+        db.query(SavedSchedule)
+        .filter(SavedSchedule.user_id == current_user.id)
+        .order_by(SavedSchedule.id)
+        .all()
+    )
+    friendships = (
+        db.query(Friendship)
+        .filter(or_(Friendship.user_id == current_user.id, Friendship.friend_id == current_user.id))
+        .order_by(Friendship.id)
+        .all()
+    )
+    uploaded_global_courses = (
+        db.query(GlobalCourse)
+        .filter(GlobalCourse.uploaded_by == current_user.id)
+        .order_by(GlobalCourse.id)
+        .all()
+    )
+
+    log.info("User data export requested: user_id=%s", current_user.id)
+
+    return {
+        "schema_version": DATA_EXPORT_SCHEMA_VERSION,
+        "generated_at": _utcnow().isoformat(),
+        "user": {
+            "id": current_user.id,
+            "email": current_user.email,
+            "role": current_user.role,
+            "is_active": current_user.is_active,
+            "created_at": _isoformat(current_user.created_at),
+            "kvkk_consent_at": _isoformat(current_user.kvkk_consent_at),
+            "consent_version": current_user.consent_version,
+        },
+        "saved_schedules": [
+            {
+                "id": schedule.id,
+                "name": schedule.name,
+                "courses": _json_value(schedule.courses_json),
+                "created_at": _isoformat(schedule.created_at),
+                "share_id": schedule.share_id,
+            }
+            for schedule in saved_schedules
+        ],
+        "friendships": [
+            {
+                "id": friendship.id,
+                "user_id": friendship.user_id,
+                "friend_id": friendship.friend_id,
+                "counterparty_user_id": friendship.friend_id
+                if friendship.user_id == current_user.id
+                else friendship.user_id,
+                "counterparty_email": friendship.friend.email
+                if friendship.user_id == current_user.id
+                else friendship.user.email,
+                "status": friendship.status,
+                "created_at": _isoformat(friendship.created_at),
+                "updated_at": _isoformat(friendship.updated_at),
+            }
+            for friendship in friendships
+        ],
+        "uploaded_global_courses": [
+            {
+                "id": course.id,
+                "semester": course.semester,
+                "uploaded_at": _isoformat(course.uploaded_at),
+                "is_active": course.is_active,
+            }
+            for course in uploaded_global_courses
+        ],
+    }
+
+
+@router.delete("/me")
+async def delete_me(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Delete the authenticated non-admin user account."""
+    if current_user.role == "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin accounts cannot be self-deleted",
+        )
+
+    user_id = current_user.id
+    db.delete(current_user)
+    db.commit()
+    log.info("User account deleted: user_id=%s", user_id)
+    return {"message": "Account deleted successfully"}
 
 
 @router.post("/logout")

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Calendar, Upload, LogIn, LogOut, Menu, Shield, User, X } from 'lucide-react';
+import { Calendar, Upload, LogIn, LogOut, Menu, Shield, User, UserCircle, X } from 'lucide-react';
 import { LanguageSwitcher, useLanguage } from '../context/LanguageContext';
 import { useEffect, useRef, useState } from 'react';
 import { BrandLogo } from './BrandLogo';
@@ -70,6 +70,9 @@ export default function Navbar() {
                     <nav className="hidden sm:flex items-center gap-1">
                         <NavLink href="/scheduler" active={isActive('/scheduler')} icon={<Calendar className="w-4 h-4" />} label={t.navScheduler} />
                         <NavLink href="/upload" active={isActive('/upload')} icon={<Upload className="w-4 h-4" />} label={t.navUpload} />
+                        {user && (
+                            <NavLink href="/account" active={isActive('/account')} icon={<UserCircle className="w-4 h-4" />} label={t.navAccount} />
+                        )}
                         {user?.role === 'admin' && (
                             <NavLink href="/admin" active={isActive('/admin')} icon={<Shield className="w-4 h-4" />} label={t.navAdmin} />
                         )}
@@ -127,6 +130,15 @@ export default function Navbar() {
                             label={t.navUpload}
                             onClick={() => setMobileOpen(false)}
                         />
+                        {user && (
+                            <NavLink
+                                href="/account"
+                                active={isActive('/account')}
+                                icon={<UserCircle className="w-4 h-4" />}
+                                label={t.navAccount}
+                                onClick={() => setMobileOpen(false)}
+                            />
+                        )}
                         {user?.role === 'admin' && (
                             <NavLink
                                 href="/admin"
