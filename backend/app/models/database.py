@@ -4,7 +4,10 @@ Uses SQLite with SQLAlchemy ORM and Alembic migrations.
 """
 
 from pathlib import Path
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, ForeignKey, Boolean
+import sqlite3
+
+from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, ForeignKey, Boolean, event
+from sqlalchemy.engine import Engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime, timezone
@@ -17,6 +20,16 @@ from ..config import settings
 def _utcnow() -> datetime:
     """Timezone-aware UTC 'now' used as the default for timestamp columns."""
     return datetime.now(timezone.utc)
+
+
+@event.listens_for(Engine, "connect")
+def _enable_sqlite_foreign_keys(dbapi_connection, _connection_record):
+    """Enable SQLite FK enforcement for every SQLAlchemy SQLite connection."""
+    if isinstance(dbapi_connection, sqlite3.Connection):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
 
 DATABASE_URL = settings.DATABASE_URL
 
@@ -45,7 +58,31 @@ class User(Base):
     consent_version = Column(String(32), nullable=True)
     
     # Relationships
-    saved_schedules = relationship("SavedSchedule", back_populates="user")
+    saved_schedules = relationship(
+        "SavedSchedule",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    friendships_sent = relationship(
+        "Friendship",
+        foreign_keys="Friendship.user_id",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    friendships_received = relationship(
+        "Friendship",
+        foreign_keys="Friendship.friend_id",
+        back_populates="friend",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    uploaded_global_courses = relationship(
+        "GlobalCourse",
+        back_populates="uploader",
+        passive_deletes=True,
+    )
     
     def __repr__(self):
         return f"<User {self.email}>"
@@ -58,7 +95,11 @@ class SavedSchedule(Base):
     id = Column(Integer, primary_key=True, index=True)
     # Nullable since Phase 1.5: anonymous shares have no owner. Filter
     # user_id IS NOT NULL when listing a user's own saved schedules.
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE", name="fk_saved_schedules_user_id_users"),
+        nullable=True,
+    )
     name = Column(String(255), nullable=False)
     courses_json = Column(Text, nullable=False)  # JSON string of courses
     created_at = Column(DateTime, default=_utcnow)
@@ -76,15 +117,23 @@ class Friendship(Base):
     __tablename__ = "friendships"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    friend_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE", name="fk_friendships_user_id_users"),
+        nullable=False,
+    )
+    friend_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="CASCADE", name="fk_friendships_friend_id_users"),
+        nullable=False,
+    )
     status = Column(String(50), default="pending")  # "pending", "accepted", "rejected"
     created_at = Column(DateTime, default=_utcnow)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
 
     # Relationships
-    user = relationship("User", foreign_keys=[user_id], backref="friendships_sent")
-    friend = relationship("User", foreign_keys=[friend_id], backref="friendships_received")
+    user = relationship("User", foreign_keys=[user_id], back_populates="friendships_sent")
+    friend = relationship("User", foreign_keys=[friend_id], back_populates="friendships_received")
 
     def __repr__(self):
         return f"<Friendship {self.user_id} -> {self.friend_id} ({self.status})>"
@@ -97,9 +146,15 @@ class GlobalCourse(Base):
     id = Column(Integer, primary_key=True, index=True)
     semester = Column(String(50), nullable=False)  # e.g., "2024-2025-Fall"
     courses_json = Column(Text, nullable=False)  # JSON string of all courses
-    uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    uploaded_by = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="SET NULL", name="fk_global_courses_uploaded_by_users"),
+        nullable=True,
+    )
     uploaded_at = Column(DateTime, default=_utcnow)
     is_active = Column(Boolean, default=True)  # Current active semester
+
+    uploader = relationship("User", back_populates="uploaded_global_courses")
     
     def __repr__(self):
         return f"<GlobalCourse {self.semester}>"

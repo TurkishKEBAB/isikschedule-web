@@ -1,6 +1,7 @@
 """Alembic migration smoke tests."""
 
 import logging
+import sqlite3
 from pathlib import Path
 
 import sqlalchemy as sa
@@ -35,6 +36,12 @@ def _column_map(engine: sa.Engine, table_name: str) -> dict[str, dict]:
     with engine.connect() as conn:
         rows = conn.exec_driver_sql(f"PRAGMA table_info({table_name})").mappings().all()
     return {row["name"]: dict(row) for row in rows}
+
+
+def _foreign_key_delete_actions(engine: sa.Engine, table_name: str) -> dict[str, str]:
+    with engine.connect() as conn:
+        rows = conn.exec_driver_sql(f"PRAGMA foreign_key_list({table_name})").mappings().all()
+    return {row["from"]: row["on_delete"] for row in rows}
 
 
 def test_alembic_upgrade_creates_current_schema_from_empty_sqlite(tmp_path):
@@ -117,6 +124,90 @@ def test_alembic_upgrade_baselines_existing_dev_sqlite_db(tmp_path):
         assert conn.execute(sa.text("select count(*) from saved_schedules")).scalar_one() == 1
         version = conn.execute(sa.text("select version_num from alembic_version")).scalar_one()
     assert version == _current_alembic_head(_alembic_config(_sqlite_url(db_path)))
+
+
+def test_alembic_upgrade_adds_fk_delete_actions_and_cleans_legacy_orphans(tmp_path):
+    db_path = tmp_path / "legacy_orphans.db"
+    raw = sqlite3.connect(db_path)
+    try:
+        raw.executescript(
+            """
+            CREATE TABLE users (
+                id INTEGER NOT NULL PRIMARY KEY,
+                email VARCHAR(255) NOT NULL UNIQUE,
+                password_hash VARCHAR(255) NOT NULL,
+                role VARCHAR(50),
+                created_at DATETIME,
+                is_active BOOLEAN,
+                kvkk_consent_at DATETIME,
+                consent_version VARCHAR(32)
+            );
+            CREATE TABLE saved_schedules (
+                id INTEGER NOT NULL PRIMARY KEY,
+                user_id INTEGER,
+                name VARCHAR(255) NOT NULL,
+                courses_json TEXT NOT NULL,
+                created_at DATETIME,
+                share_id VARCHAR(64) UNIQUE,
+                FOREIGN KEY(user_id) REFERENCES users (id)
+            );
+            CREATE INDEX ix_saved_schedules_id ON saved_schedules (id);
+            CREATE TABLE friendships (
+                id INTEGER NOT NULL PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                friend_id INTEGER NOT NULL,
+                status VARCHAR(50),
+                created_at DATETIME,
+                updated_at DATETIME,
+                FOREIGN KEY(user_id) REFERENCES users (id),
+                FOREIGN KEY(friend_id) REFERENCES users (id)
+            );
+            CREATE INDEX ix_friendships_id ON friendships (id);
+            CREATE TABLE global_courses (
+                id INTEGER NOT NULL PRIMARY KEY,
+                semester VARCHAR(50) NOT NULL,
+                courses_json TEXT NOT NULL,
+                uploaded_by INTEGER,
+                uploaded_at DATETIME,
+                is_active BOOLEAN,
+                FOREIGN KEY(uploaded_by) REFERENCES users (id)
+            );
+            CREATE INDEX ix_global_courses_id ON global_courses (id);
+            INSERT INTO users (id, email, password_hash) VALUES
+                (1, 'owner@isik.edu.tr', 'hash'),
+                (2, 'friend@isik.edu.tr', 'hash');
+            INSERT INTO saved_schedules (id, user_id, name, courses_json) VALUES
+                (1, 1, 'valid', '[]'),
+                (2, 999, 'orphan', '[]'),
+                (3, NULL, 'anonymous', '[]');
+            INSERT INTO friendships (id, user_id, friend_id, status) VALUES
+                (1, 1, 2, 'accepted'),
+                (2, 999, 2, 'accepted'),
+                (3, 1, 999, 'accepted');
+            INSERT INTO global_courses (id, semester, courses_json, uploaded_by) VALUES
+                (1, 'valid', '[]', 1),
+                (2, 'orphan uploader', '[]', 999);
+            """
+        )
+        raw.commit()
+    finally:
+        raw.close()
+
+    engine = sa.create_engine(_sqlite_url(db_path))
+    command.upgrade(_alembic_config(_sqlite_url(db_path)), "head")
+
+    assert _foreign_key_delete_actions(engine, "saved_schedules")["user_id"] == "CASCADE"
+    assert _foreign_key_delete_actions(engine, "friendships") == {
+        "friend_id": "CASCADE",
+        "user_id": "CASCADE",
+    }
+    assert _foreign_key_delete_actions(engine, "global_courses")["uploaded_by"] == "SET NULL"
+
+    with engine.connect() as conn:
+        assert conn.execute(sa.text("select count(*) from saved_schedules where id = 2")).scalar_one() == 0
+        assert conn.execute(sa.text("select count(*) from saved_schedules where id = 3")).scalar_one() == 1
+        assert conn.execute(sa.text("select count(*) from friendships where id in (2, 3)")).scalar_one() == 0
+        assert conn.execute(sa.text("select uploaded_by from global_courses where id = 2")).scalar_one() is None
 
 
 def test_alembic_upgrade_preserves_existing_application_loggers(tmp_path):
